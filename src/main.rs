@@ -19,7 +19,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::mem;
 
-fn prepare_pipeline_state<'a>(device: &DeviceRef) -> RenderPipelineState
+fn prepare_pipeline_state(device: &DeviceRef) -> RenderPipelineState
 {
     let mut file = File::open("src/shaders.metal").unwrap();
     let mut contents = String::new();
@@ -38,14 +38,16 @@ fn prepare_pipeline_state<'a>(device: &DeviceRef) -> RenderPipelineState
     device.new_render_pipeline_state(&pipeline_state_descriptor).unwrap()
 }
 
-fn prepare_render_pass_descriptor(descriptor: &RenderPassDescriptorRef, texture: &TextureRef)
+fn prepare_render_target<'a>(texture: &TextureRef) -> &'a RenderPassDescriptorRef
 {
+    let descriptor = RenderPassDescriptor::new();
     let color_attachment = descriptor.color_attachments().object_at(0).unwrap();
 
     color_attachment.set_texture(Some(texture));
     color_attachment.set_load_action(MTLLoadAction::Clear);
     color_attachment.set_clear_color(MTLClearColor::new(0.5, 0.2, 0.2, 1.0));
     color_attachment.set_store_action(MTLStoreAction::Store);
+    descriptor
 }
 
 fn main() {
@@ -101,11 +103,10 @@ fn main() {
         });
 
         if let Some(drawable) = layer.next_drawable() {
-            let render_pass_descriptor = RenderPassDescriptor::new();
-            prepare_render_pass_descriptor(&render_pass_descriptor, drawable.texture());
+            let render_target = prepare_render_target(drawable.texture());
 
             let command_buffer = command_queue.new_command_buffer();
-            let parallel_encoder = command_buffer.new_parallel_render_command_encoder(&render_pass_descriptor);
+            let parallel_encoder = command_buffer.new_parallel_render_command_encoder(&render_target);
             let encoder = parallel_encoder.render_command_encoder();
             encoder.set_render_pipeline_state(&pipeline_state);
             encoder.set_vertex_buffer(0, Some(&vbuf), 0);
@@ -113,7 +114,7 @@ fn main() {
             encoder.end_encoding();
             parallel_encoder.end_encoding();
 
-            render_pass_descriptor.color_attachments().object_at(0).unwrap().set_load_action(MTLLoadAction::DontCare);
+            render_target.color_attachments().object_at(0).unwrap().set_load_action(MTLLoadAction::DontCare);
 
             command_buffer.present_drawable(&drawable);
             command_buffer.commit();
