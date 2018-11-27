@@ -5,14 +5,13 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+extern crate metal;
 extern crate cocoa;
 extern crate core_graphics;
-extern crate metal;
-extern crate winit;
+
 #[macro_use] extern crate objc;
-extern crate objc_foundation;
-extern crate block;
-extern crate sema;
+
+extern crate winit;
 
 use cocoa::base::id as cocoa_id;
 use cocoa::foundation::{NSRange, NSAutoreleasePool};
@@ -53,12 +52,12 @@ fn prepare_render_pass_descriptor(descriptor: &RenderPassDescriptorRef, texture:
 
 fn main() {
     let mut events_loop = winit::EventsLoop::new();
-    let glutin_window = winit::WindowBuilder::new()
+    let winit_window = winit::WindowBuilder::new()
         .with_dimensions((800, 600).into())
-        .with_title("Metal".to_string())
+        .with_title("Metal ray tracer".to_string())
         .build(&events_loop).unwrap();
 
-    let window: cocoa_id = unsafe { mem::transmute(glutin_window.get_nswindow()) };
+    let window: cocoa_id = unsafe { mem::transmute(winit_window.get_nswindow()) };
     let device = Device::system_default();
 
     let layer = CoreAnimationLayer::new();
@@ -73,7 +72,7 @@ fn main() {
         view.setLayer(mem::transmute(layer.as_ref()));
     }
 
-    let draw_size = glutin_window.get_inner_size().unwrap();
+    let draw_size = winit_window.get_inner_size().unwrap();
     layer.set_drawable_size(CGSize::new(draw_size.width as f64, draw_size.height as f64));
 
     let library = device.new_library_with_file("src/default.metallib").unwrap();
