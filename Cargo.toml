@@ -5,7 +5,6 @@ authors = ["Asger Nyman Christiansen <asger.nyman@alexandra.dk>"]
 
 [dependencies]
 cocoa = "0.18"
-core-graphics = "0.17"
 objc = "0.2.5"
 winit = "0.17"
 metal = { path = "../metal-rs/" }

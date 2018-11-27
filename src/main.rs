@@ -7,18 +7,15 @@
 
 extern crate metal;
 extern crate cocoa;
-extern crate core_graphics;
 
 #[macro_use] extern crate objc;
 
 extern crate winit;
 
 use cocoa::base::id as cocoa_id;
+use cocoa::base::YES;
 use cocoa::foundation::{NSRange, NSAutoreleasePool};
 use cocoa::appkit::{NSWindow, NSView};
-use core_graphics::geometry::CGSize;
-
-use objc::runtime::YES;
 
 use metal::*;
 
@@ -73,7 +70,7 @@ fn main() {
     }
 
     let draw_size = winit_window.get_inner_size().unwrap();
-    layer.set_drawable_size(CGSize::new(draw_size.width as f64, draw_size.height as f64));
+    layer.set_drawable_size(draw_size.width as f64, draw_size.height as f64);
 
     let library = device.new_library_with_file("src/default.metallib").unwrap();
     let pipeline_state = prepare_pipeline_state(&device, &library);
@@ -107,7 +104,7 @@ fn main() {
 
         if let Some(drawable) = layer.next_drawable() {
             let render_pass_descriptor = RenderPassDescriptor::new();
-            let _a = prepare_render_pass_descriptor(&render_pass_descriptor, drawable.texture());
+            prepare_render_pass_descriptor(&render_pass_descriptor, drawable.texture());
 
             let command_buffer = command_queue.new_command_buffer();
             let parallel_encoder = command_buffer.new_parallel_render_command_encoder(&render_pass_descriptor);
@@ -149,7 +146,7 @@ fn main() {
             r += 0.01f32;
             //let _: () = msg_send![command_queue.0, _submitAvailableCommandBuffers];
             unsafe {
-                msg_send![pool, release];
+                msg_send![pool, drain];
                 pool = NSAutoreleasePool::new(cocoa::base::nil);
             }
         }
