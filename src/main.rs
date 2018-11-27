@@ -15,12 +15,20 @@ use metal::*;
 
 use winit::os::macos::WindowExt;
 
+use std::fs::File;
+use std::io::prelude::*;
 use std::mem;
 
-fn prepare_pipeline_state<'a>(device: &DeviceRef, library: &LibraryRef) -> RenderPipelineState
+fn prepare_pipeline_state<'a>(device: &DeviceRef) -> RenderPipelineState
 {
-    let vert = library.get_function("triangle_vertex", None).unwrap();
-    let frag = library.get_function("triangle_fragment", None).unwrap();
+    let mut file = File::open("src/shaders.metal").unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+
+    let options = CompileOptions::new();
+    let library = device.new_library_with_source(&contents, &options).unwrap();
+    let vert = library.get_function("vs", None).unwrap();
+    let frag = library.get_function("ps", None).unwrap();
 
     let pipeline_state_descriptor = RenderPipelineDescriptor::new();
     pipeline_state_descriptor.set_vertex_function(Some(&vert));
@@ -65,8 +73,7 @@ fn main() {
     let draw_size = winit_window.get_inner_size().unwrap();
     layer.set_drawable_size(draw_size.width as f64, draw_size.height as f64);
 
-    let library = device.new_library_with_file("src/default.metallib").unwrap();
-    let pipeline_state = prepare_pipeline_state(&device, &library);
+    let pipeline_state = prepare_pipeline_state(&device);
     let command_queue = device.new_command_queue();
 
     let vbuf = {
