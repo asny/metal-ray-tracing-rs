@@ -1,9 +1,3 @@
-// Copyright 2016 metal-rs developers
-//
-// Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
-// http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
-// http://opensource.org/licenses/MIT>, at your option. This file may not be
-// copied, modified, or distributed except according to those terms.
 
 extern crate metal;
 extern crate cocoa;
@@ -14,7 +8,7 @@ extern crate winit;
 
 use cocoa::base::id as cocoa_id;
 use cocoa::base::YES;
-use cocoa::foundation::{NSRange, NSAutoreleasePool};
+use cocoa::foundation::{NSAutoreleasePool};
 use cocoa::appkit::{NSWindow, NSView};
 
 use metal::*;
@@ -23,8 +17,8 @@ use winit::os::macos::WindowExt;
 
 use std::mem;
 
-
-fn prepare_pipeline_state<'a>(device: &DeviceRef, library: &LibraryRef) -> RenderPipelineState {
+fn prepare_pipeline_state<'a>(device: &DeviceRef, library: &LibraryRef) -> RenderPipelineState
+{
     let vert = library.get_function("triangle_vertex", None).unwrap();
     let frag = library.get_function("triangle_fragment", None).unwrap();
 
@@ -36,9 +30,8 @@ fn prepare_pipeline_state<'a>(device: &DeviceRef, library: &LibraryRef) -> Rende
     device.new_render_pipeline_state(&pipeline_state_descriptor).unwrap()
 }
 
-fn prepare_render_pass_descriptor(descriptor: &RenderPassDescriptorRef, texture: &TextureRef) {
-    //descriptor.color_attachments().set_object_at(0, MTLRenderPassColorAttachmentDescriptor::alloc());
-    //let color_attachment: MTLRenderPassColorAttachmentDescriptor = unsafe { msg_send![descriptor.color_attachments().0, _descriptorAtIndex:0] };//descriptor.color_attachments().object_at(0);
+fn prepare_render_pass_descriptor(descriptor: &RenderPassDescriptorRef, texture: &TextureRef)
+{
     let color_attachment = descriptor.color_attachments().object_at(0).unwrap();
 
     color_attachment.set_texture(Some(texture));
@@ -75,7 +68,6 @@ fn main() {
     let library = device.new_library_with_file("src/default.metallib").unwrap();
     let pipeline_state = prepare_pipeline_state(&device, &library);
     let command_queue = device.new_command_queue();
-    //let nc: () = msg_send![command_queue.0, setExecutionEnabled:true];
 
     let vbuf = {
         let vertex_data = [
@@ -91,7 +83,6 @@ fn main() {
     };
 
     let mut pool = unsafe { NSAutoreleasePool::new(cocoa::base::nil) };
-    let mut r = 0.0f32;
     let mut running = true;
 
     while running {
@@ -117,34 +108,9 @@ fn main() {
 
             render_pass_descriptor.color_attachments().object_at(0).unwrap().set_load_action(MTLLoadAction::DontCare);
 
-            let parallel_encoder = command_buffer.new_parallel_render_command_encoder(&render_pass_descriptor);
-            let encoder = parallel_encoder.render_command_encoder();
-            use std::mem;
-            let p = vbuf.contents();
-            let vertex_data: &[u8; 60] = unsafe { mem::transmute(&[
-                  0.0f32,  0.5, 1.0, 0.0-r, 0.0,
-                 -0.5, -0.5, 0.0, 1.0-r, 0.0,
-                  0.5,  0.5, 0.0, 0.0, 1.0+r,
-            ]) };
-            use std::ptr;
-
-            unsafe {
-                ptr::copy(vertex_data.as_ptr(), p as *mut u8, (vertex_data.len() * mem::size_of::<f32>()) as usize);
-            }
-            vbuf.did_modify_range(NSRange::new(0 as u64, (vertex_data.len() * mem::size_of::<f32>()) as u64));
-
-
-            encoder.set_render_pipeline_state(&pipeline_state);
-            encoder.set_vertex_buffer(0, Some(&vbuf), 0);
-            encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 3);
-            encoder.end_encoding();
-            parallel_encoder.end_encoding();
-
             command_buffer.present_drawable(&drawable);
             command_buffer.commit();
 
-            r += 0.01f32;
-            //let _: () = msg_send![command_queue.0, _submitAvailableCommandBuffers];
             unsafe {
                 msg_send![pool, drain];
                 pool = NSAutoreleasePool::new(cocoa::base::nil);
