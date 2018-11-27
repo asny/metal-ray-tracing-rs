@@ -1,0 +1,14 @@
+[package]
+name = "metal-ray-tracing-rs"
+version = "0.1.0"
+authors = ["Asger Nyman Christiansen <asger.nyman@alexandra.dk>"]
+
+[dependencies]
+cocoa = "0.18"
+core-graphics = "0.17"
+objc = "0.2.5"
+objc-foundation = "0.1"
+block = "0.1.5"
+winit = "0.17"
+sema = "0.1.4"
+metal = { path = "../metal-rs/" }
