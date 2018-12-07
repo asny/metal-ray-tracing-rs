@@ -1,11 +1,5 @@
 
-extern crate metal;
-extern crate cocoa;
-
-#[macro_use] extern crate objc;
-
-extern crate winit;
-
+use objc::{msg_send, sel, sel_impl};
 use cocoa::base::id as cocoa_id;
 use cocoa::base::YES;
 use cocoa::foundation::{NSAutoreleasePool};
