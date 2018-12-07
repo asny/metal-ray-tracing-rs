@@ -2,6 +2,7 @@
 name = "metal-ray-tracing-rs"
 version = "0.1.0"
 authors = ["Asger Nyman Christiansen <asger.nyman@alexandra.dk>"]
+edition = "2018"
 
 [dependencies]
 cocoa = "0.18"
