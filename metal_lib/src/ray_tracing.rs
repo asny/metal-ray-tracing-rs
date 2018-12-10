@@ -23,3 +23,12 @@ impl TriangleAccelerationStructure {
     }
 }
 
+impl TriangleAccelerationStructureRef {
+
+    pub fn set_vertex_buffer(&self, buffer: Option<&BufferRef>) {
+        unsafe {
+            msg_send![self,
+                setVertexBuffer: buffer];
+        }
+    }
+}
