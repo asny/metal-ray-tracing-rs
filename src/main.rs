@@ -93,9 +93,16 @@ fn main() {
     acceleration_structure.set_vertex_buffer(Some(&vertex_buffer));
     acceleration_structure.set_vertex_stride((3 * mem::size_of::<f32>()) as i64);
     acceleration_structure.set_index_buffer(Some(&index_buffer));
-    acceleration_structure.set_index_type(32);
+    acceleration_structure.set_index_type(32); // MPSDataType: uInt32
     acceleration_structure.set_triangle_count(1);
     acceleration_structure.rebuild();
+
+    // Ray intersector:
+    let ray_intersector = RayIntersector::new(&device);
+    ray_intersector.set_ray_stride(800*600);
+    ray_intersector.set_ray_data_type(1); // MPSRayDataTypeOriginMinDistanceDirectionMaxDistance
+    ray_intersector.set_intersection_stride(800*600);
+    ray_intersector.set_intersection_data_type(4); // MPSIntersectionDataTypeDistancePrimitiveIndexCoordinates
 
     let mut pool = unsafe { NSAutoreleasePool::new(cocoa::base::nil) };
     let mut running = true;

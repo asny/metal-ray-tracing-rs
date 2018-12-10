@@ -1,6 +1,54 @@
 
 use super::*;
 
+pub enum MPSRayIntersector {}
+
+foreign_obj_type! {
+    type CType = MPSRayIntersector;
+    pub struct RayIntersector;
+    pub struct RayIntersectorRef;
+}
+
+impl RayIntersector {
+    pub fn new(device: &DeviceRef) -> Self {
+        unsafe {
+            let class = class!(MPSRayIntersector);
+            let this: RayIntersector = msg_send![class, alloc];
+            let this_alias: *mut Object = msg_send![this.as_ref(), initWithDevice:device];
+            if this_alias.is_null() {
+                panic!("[MPSRayIntersector init] failed");
+            }
+            this
+        }
+    }
+}
+
+impl RayIntersectorRef {
+    pub fn set_ray_stride(&self, stride: i64) {
+        unsafe {
+            msg_send![self, setRayStride: stride];
+        }
+    }
+
+    pub fn set_ray_data_type(&self, data_type: u64) {
+        unsafe {
+            msg_send![self, setRayDataType: data_type];
+        }
+    }
+
+    pub fn set_intersection_stride(&self, stride: i64) {
+        unsafe {
+            msg_send![self, setIntersectionStride: stride];
+        }
+    }
+
+    pub fn set_intersection_data_type(&self, data_type: u64) {
+        unsafe {
+            msg_send![self, setIntersectionDataType: data_type];
+        }
+    }
+}
+
 pub enum MPSTriangleAccelerationStructure {}
 
 foreign_obj_type! {
