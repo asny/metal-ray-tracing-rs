@@ -45,10 +45,9 @@ fn prepare_render_pass_descriptor<'a>(texture: &TextureRef) -> &'a RenderPassDes
 }
 
 fn main() {
-    let size = (800, 600).into();
     let mut events_loop = winit::EventsLoop::new();
     let winit_window = winit::WindowBuilder::new()
-        .with_dimensions(size)
+        .with_dimensions((800, 600).into())
         .with_title("Metal ray tracer".to_string())
         .build(&events_loop).unwrap();
 
@@ -90,7 +89,7 @@ fn main() {
 
     let uniform_buffer = {
         let uniform_data = [
-            size.width as f32,  size.height as f32
+            1.0 / draw_size.width as f32,  1.0 / draw_size.height as f32
         ];
         device.new_buffer_with_data( unsafe { mem::transmute(uniform_data.as_ptr()) },
                                      (uniform_data.len() * mem::size_of::<f32>()) as u64,

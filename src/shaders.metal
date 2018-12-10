@@ -8,7 +8,7 @@ typedef struct {
 
 typedef struct
 {
-    float2 viewport;
+    float2 viewport_scale;
 } uniforms_t;
 
 struct VertexOutFragmentIn {
@@ -30,6 +30,6 @@ vertex VertexOutFragmentIn vs(device vertex_t* vertex_array [[ buffer(0) ]],
 fragment float4 ps(VertexOutFragmentIn in [[stage_in]],
                          device uniforms_t* uniforms [[ buffer(1) ]])
 {
-    float2 viewport = uniforms->viewport;
-    return float4(in.position.x / viewport.x, 1.0-in.position.y / viewport.y, 0.0, 1.0);
+    float2 uv = float2(in.position.x * uniforms->viewport_scale.x, 1.0-in.position.y * uniforms->viewport_scale.y);
+    return float4(uv, 0.0, 1.0);
 };
