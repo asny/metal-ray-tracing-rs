@@ -2,34 +2,31 @@
 
 using namespace metal;
 
-typedef struct {
-    float2 position;
-} vertex_t;
-
-typedef struct
-{
-    float2 viewport_scale;
-} uniforms_t;
-
 struct VertexOutFragmentIn {
     float4 position [[position]];
+    float2 coords;
+};
+
+constant constexpr static const float4 fullscreenTrianglePositions[3]
+{
+    {-1.0, -1.0, 0.0, 1.0},
+    { 3.0, -1.0, 0.0, 1.0},
+    {-1.0,  3.0, 0.0, 1.0}
 };
 
 // vertex shader function
-vertex VertexOutFragmentIn vs(device vertex_t* vertex_array [[ buffer(0) ]],
-                                   unsigned int vid [[ vertex_id ]])
+vertex VertexOutFragmentIn vs(unsigned int vid [[ vertex_id ]])
 {
     VertexOutFragmentIn out;
 
-    out.position = float4(float2(vertex_array[vid].position), 0.0, 1.0);
+    out.position = fullscreenTrianglePositions[vid];
+    out.coords = out.position.xy * 0.5 + 0.5;
 
     return out;
 }
 
 // fragment shader function
-fragment float4 ps(VertexOutFragmentIn in [[stage_in]],
-                         device uniforms_t* uniforms [[ buffer(1) ]])
+fragment float4 ps(VertexOutFragmentIn in [[stage_in]])
 {
-    float2 uv = float2(in.position.x * uniforms->viewport_scale.x, 1.0-in.position.y * uniforms->viewport_scale.y);
-    return float4(uv, 0.0, 1.0);
+    return float4(in.coords, 0.0, 1.0);
 };

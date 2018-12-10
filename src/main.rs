@@ -72,30 +72,6 @@ fn main() {
     let pipeline_state = prepare_render_pipeline_descriptor(&device);
     let command_queue = device.new_command_queue();
 
-    let vbuf = {
-        let vertex_data = [
-            -1.0f32,  -1.0,
-            1.0, -1.0,
-            1.0, 1.0,
-            1.0, 1.0,
-            -1.0, 1.0,
-            -1.0, -1.0
-        ];
-
-        device.new_buffer_with_data( unsafe { mem::transmute(vertex_data.as_ptr()) },
-                                     (vertex_data.len() * mem::size_of::<f32>()) as u64,
-                                     MTLResourceOptions::CPUCacheModeDefaultCache)
-    };
-
-    let uniform_buffer = {
-        let uniform_data = [
-            1.0 / draw_size.width as f32,  1.0 / draw_size.height as f32
-        ];
-        device.new_buffer_with_data( unsafe { mem::transmute(uniform_data.as_ptr()) },
-                                     (uniform_data.len() * mem::size_of::<f32>()) as u64,
-                                     MTLResourceOptions::CPUCacheModeDefaultCache)
-    };
-
     let mut pool = unsafe { NSAutoreleasePool::new(cocoa::base::nil) };
     let mut running = true;
 
@@ -114,9 +90,7 @@ fn main() {
             let parallel_encoder = command_buffer.new_parallel_render_command_encoder(&render_pass_descriptor);
             let encoder = parallel_encoder.render_command_encoder();
             encoder.set_render_pipeline_state(&pipeline_state);
-            encoder.set_vertex_buffer(0, Some(&vbuf), 0);
-            encoder.set_fragment_buffer(1, Some(&uniform_buffer), 0);
-            encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 6);
+            encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 3);
             encoder.end_encoding();
             parallel_encoder.end_encoding();
 
