@@ -8,4 +8,4 @@ edition = "2018"
 cocoa = "0.18"
 objc = "0.2.5"
 winit = "0.17"
-metal = { path = "../metal-rs/" }
+metal = { path = "metal_lib/" }
