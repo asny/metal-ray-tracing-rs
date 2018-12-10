@@ -45,9 +45,10 @@ fn prepare_render_pass_descriptor<'a>(texture: &TextureRef) -> &'a RenderPassDes
 }
 
 fn main() {
+    let size = (800, 600).into();
     let mut events_loop = winit::EventsLoop::new();
     let winit_window = winit::WindowBuilder::new()
-        .with_dimensions((800, 600).into())
+        .with_dimensions(size)
         .with_title("Metal ray tracer".to_string())
         .build(&events_loop).unwrap();
 
@@ -87,6 +88,15 @@ fn main() {
                                      MTLResourceOptions::CPUCacheModeDefaultCache)
     };
 
+    let uniform_buffer = {
+        let uniform_data = [
+            size.width as f32,  size.height as f32
+        ];
+        device.new_buffer_with_data( unsafe { mem::transmute(uniform_data.as_ptr()) },
+                                     (uniform_data.len() * mem::size_of::<f32>()) as u64,
+                                     MTLResourceOptions::CPUCacheModeDefaultCache)
+    };
+
     let mut pool = unsafe { NSAutoreleasePool::new(cocoa::base::nil) };
     let mut running = true;
 
@@ -106,6 +116,7 @@ fn main() {
             let encoder = parallel_encoder.render_command_encoder();
             encoder.set_render_pipeline_state(&pipeline_state);
             encoder.set_vertex_buffer(0, Some(&vbuf), 0);
+            encoder.set_fragment_buffer(1, Some(&uniform_buffer), 0);
             encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 6);
             encoder.end_encoding();
             parallel_encoder.end_encoding();

@@ -6,6 +6,11 @@ typedef struct {
     float2 position;
 } vertex_t;
 
+typedef struct
+{
+    float2 viewport;
+} uniforms_t;
+
 struct VertexOutFragmentIn {
     float4 position [[position]];
 };
@@ -22,7 +27,9 @@ vertex VertexOutFragmentIn vs(device vertex_t* vertex_array [[ buffer(0) ]],
 }
 
 // fragment shader function
-fragment float4 ps(VertexOutFragmentIn in [[stage_in]])
+fragment float4 ps(VertexOutFragmentIn in [[stage_in]],
+                         device uniforms_t* uniforms [[ buffer(1) ]])
 {
-    return float4(in.position.x / 800.0, 1.0-in.position.y / 600.0, 0.0, 1.0);
+    float2 viewport = uniforms->viewport;
+    return float4(in.position.x / viewport.x, 1.0-in.position.y / viewport.y, 0.0, 1.0);
 };
