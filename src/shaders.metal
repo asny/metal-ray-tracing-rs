@@ -4,28 +4,25 @@ using namespace metal;
 
 typedef struct {
     float2 position;
-    float3 color;
 } vertex_t;
 
-struct ColorInOut {
+struct VertexOutFragmentIn {
     float4 position [[position]];
-    float4 color;
 };
 
 // vertex shader function
-vertex ColorInOut vs(device vertex_t* vertex_array [[ buffer(0) ]],
+vertex VertexOutFragmentIn vs(device vertex_t* vertex_array [[ buffer(0) ]],
                                    unsigned int vid [[ vertex_id ]])
 {
-    ColorInOut out;
+    VertexOutFragmentIn out;
 
     out.position = float4(float2(vertex_array[vid].position), 0.0, 1.0);
-    out.color = float4(float3(vertex_array[vid].color), 1.0);
 
     return out;
 }
 
 // fragment shader function
-fragment float4 ps(ColorInOut in [[stage_in]])
+fragment float4 ps(VertexOutFragmentIn in [[stage_in]])
 {
-    return in.color;
+    return float4(in.position.x / 800.0, 1.0-in.position.y / 600.0, 0.0, 1.0);
 };

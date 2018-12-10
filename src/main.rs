@@ -74,9 +74,12 @@ fn main() {
 
     let vbuf = {
         let vertex_data = [
-              0.0f32,  0.5, 1.0, 0.0, 0.0,
-             -0.5, -0.5, 0.0, 1.0, 0.0,
-              0.5,  0.5, 0.0, 0.0, 1.0,
+            -1.0f32,  -1.0,
+            1.0, -1.0,
+            1.0, 1.0,
+            1.0, 1.0,
+            -1.0, 1.0,
+            -1.0, -1.0
         ];
 
         device.new_buffer_with_data( unsafe { mem::transmute(vertex_data.as_ptr()) },
@@ -103,7 +106,7 @@ fn main() {
             let encoder = parallel_encoder.render_command_encoder();
             encoder.set_render_pipeline_state(&pipeline_state);
             encoder.set_vertex_buffer(0, Some(&vbuf), 0);
-            encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 3);
+            encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 6);
             encoder.end_encoding();
             parallel_encoder.end_encoding();
 
