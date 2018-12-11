@@ -4,8 +4,8 @@ use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
 
-const SIZE_OF_RAY: usize = 8 * std::mem::size_of::<f32>();
-const SIZE_OF_INTERSECTION: usize = 3 * std::mem::size_of::<f32>() + std::mem::size_of::<u64>();
+const SIZE_OF_RAY: usize = 32;
+const SIZE_OF_INTERSECTION: usize = 16;
 
 pub struct Intersector {
     acceleration_structure: TriangleAccelerationStructure,
