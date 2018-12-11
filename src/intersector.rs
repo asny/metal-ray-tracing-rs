@@ -111,8 +111,10 @@ impl Intersector {
         encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
         encoder.set_compute_pipeline_state(&self.test_pipeline_state);
 
-        let thread_groups_count = MTLSize {width: self.output_image_size.0 as u64, height: self.output_image_size.1 as u64, depth: self.output_image_size.2 as u64};
         let threads_per_thread_group = MTLSize {width: 8, height: 8, depth: 1};
+        let thread_groups_count = MTLSize {width: self.output_image_size.0 as u64 / threads_per_thread_group.width,
+            height: self.output_image_size.1 as u64 / threads_per_thread_group.height,
+            depth: self.output_image_size.2 as u64 / threads_per_thread_group.depth};
         encoder.dispatch_thread_groups(thread_groups_count, threads_per_thread_group);
 
         encoder.end_encoding();
