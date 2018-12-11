@@ -7,12 +7,21 @@
 //
 
 #include <metal_stdlib>
-#include <MetalPerformanceShaders/MetalPerformanceShaders.h>
-
-using Ray = MPSRayOriginMinDistanceDirectionMaxDistance;
-using Intersection = MPSIntersectionDistancePrimitiveIndexCoordinates;
 
 using namespace metal;
+
+struct Ray {
+    float3 origin;
+    float3 direction;
+    float minDistance;
+    float maxDistance;
+};
+
+struct Intersection {
+    float2 coordinates;
+    float distance;
+    uint primitiveIndex;
+};
 
 kernel void generateRays(device Ray* rays [[buffer(0)]],
                          uint2 coordinates [[thread_position_in_grid]],
@@ -20,8 +29,8 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
     float2 uv = float2(coordinates) / float2(size - 1);
-    rays[rayIndex].origin = MPSPackedFloat3(uv.x, uv.y, -1.0);
-    rays[rayIndex].direction = MPSPackedFloat3(0.0, 0.0, 1.0);
+    rays[rayIndex].origin = float3(uv.x, uv.y, -1.0);
+    rays[rayIndex].direction = float3(0.0, 0.0, 1.0);
     rays[rayIndex].minDistance = 0.0f;
     rays[rayIndex].maxDistance = 2.0f;
 }

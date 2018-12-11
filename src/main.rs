@@ -91,7 +91,7 @@ fn main() {
             let render_pass_descriptor = prepare_render_pass_descriptor(drawable.texture());
 
             let command_buffer = command_queue.new_command_buffer();
-            intersector.encode_into_test(command_buffer);
+            intersector.encode_into(command_buffer);
 
             let encoder = command_buffer.new_render_command_encoder(&render_pass_descriptor);
             encoder.set_render_pipeline_state(&blit_pipeline_state);

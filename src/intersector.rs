@@ -11,7 +11,9 @@ pub struct Intersector {
     intersection_buffer: Option<Buffer>,
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
-    test_pipeline_state: ComputePipelineState
+    test_pipeline_state: ComputePipelineState,
+    ray_generator_pipeline_state: ComputePipelineState,
+    intersection_handler_pipeline_state: ComputePipelineState
 }
 
 impl Intersector {
@@ -53,9 +55,11 @@ impl Intersector {
 
         // Pipeline states:
         let test_pipeline_state = Self::create_compute_pipeline_state(device, "src/test.metal", "imageFillTest");
+        let ray_generator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "generateRays");
+        let intersection_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleIntersections");
 
         let mut val = Intersector {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None,
-            output_image: None, output_image_size: (0,0,0), test_pipeline_state};
+            output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state};
         val.resize(device, width, height);
         val
     }
@@ -97,12 +101,48 @@ impl Intersector {
 
     pub fn encode_into(&self, command_buffer: &CommandBufferRef)
     {
+        self.encode_ray_generator(command_buffer);
+
         self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
                                                                    0, //MPSIntersectionTypeNearest
                                                                    self.ray_buffer.as_ref().unwrap(), 0,
                                                                    self.intersection_buffer.as_ref().unwrap(), 0,
                                                                    (self.output_image_size.0 * self.output_image_size.1) as u64,
                                                                    &self.acceleration_structure);
+
+        self.encode_intersection_handler(command_buffer);
+
+    }
+
+    fn encode_ray_generator(&self, command_buffer: &CommandBufferRef)
+    {
+        let encoder = command_buffer.new_compute_command_encoder();
+
+        encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_compute_pipeline_state(&self.ray_generator_pipeline_state);
+        let threads_per_thread_group = MTLSize {width: 8, height: 8, depth: 1};
+        let thread_groups_count = MTLSize {width: self.output_image_size.0 as u64 / threads_per_thread_group.width,
+            height: self.output_image_size.1 as u64 / threads_per_thread_group.height,
+            depth: self.output_image_size.2 as u64 / threads_per_thread_group.depth};
+        encoder.dispatch_thread_groups(thread_groups_count, threads_per_thread_group);
+
+        encoder.end_encoding();
+    }
+
+    fn encode_intersection_handler(&self, command_buffer: &CommandBufferRef)
+    {
+        let encoder = command_buffer.new_compute_command_encoder();
+
+        encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
+        encoder.set_buffer(0, Some(self.intersection_buffer.as_ref().unwrap()), 0);
+        encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
+        let threads_per_thread_group = MTLSize {width: 8, height: 8, depth: 1};
+        let thread_groups_count = MTLSize {width: self.output_image_size.0 as u64 / threads_per_thread_group.width,
+            height: self.output_image_size.1 as u64 / threads_per_thread_group.height,
+            depth: self.output_image_size.2 as u64 / threads_per_thread_group.depth};
+        encoder.dispatch_thread_groups(thread_groups_count, threads_per_thread_group);
+
+        encoder.end_encoding();
     }
 
     pub fn encode_into_test(&self, command_buffer: &CommandBufferRef)
