@@ -104,6 +104,7 @@ impl Intersector {
 
     pub fn encode_into(&self, command_buffer: &CommandBufferRef)
     {
+        self.encode_into_test(command_buffer);
         self.encode_ray_generator(command_buffer);
 
         self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
