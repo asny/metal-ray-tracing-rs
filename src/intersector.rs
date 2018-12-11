@@ -7,6 +7,7 @@ pub struct Intersector {
     ray_intersector: RayIntersector,
     ray_buffer: Option<Buffer>,
     intersection_buffer: Option<Buffer>,
+    output_image: Option<Texture>,
     output_image_size: (usize, usize, usize)
 }
 
@@ -47,7 +48,7 @@ impl Intersector {
         ray_intersector.set_intersection_stride(8 * std::mem::size_of::<f32>() as i64);
         ray_intersector.set_intersection_data_type(4); // MPSIntersectionDataTypeDistancePrimitiveIndexCoordinates
 
-        let mut val = Intersector {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None, output_image_size: (0,0,0)};
+        let mut val = Intersector {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None, output_image: None, output_image_size: (0,0,0)};
         val.resize(device, 800, 600);
         val
     }
@@ -57,7 +58,13 @@ impl Intersector {
         self.output_image_size = (width, height, 1);
         let ray_count = width * height;
 
-
+        let texture_descriptor = TextureDescriptor::new();
+        texture_descriptor.set_pixel_format(MTLPixelFormat::RGBA32Float);
+        texture_descriptor.set_width(width as u64);
+        texture_descriptor.set_height(height as u64);
+        texture_descriptor.set_storage_mode(MTLStorageMode::Private);
+        texture_descriptor.set_usage(MTLTextureUsage::ShaderWrite);
+        self.output_image = Some(device.new_texture(&texture_descriptor));
 
         self.ray_buffer = Some(device.new_buffer((ray_count * 8 * std::mem::size_of::<f32>()) as u64, MTLResourceOptions::StorageModePrivate));
         self.intersection_buffer = Some(device.new_buffer((ray_count * 8 * std::mem::size_of::<f32>()) as u64, MTLResourceOptions::StorageModePrivate));
