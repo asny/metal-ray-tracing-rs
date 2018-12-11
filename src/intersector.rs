@@ -1,6 +1,8 @@
 
 use metal::*;
 use std::mem;
+use std::fs::File;
+use std::io::prelude::*;
 
 pub struct Intersector {
     acceleration_structure: TriangleAccelerationStructure,
@@ -8,7 +10,8 @@ pub struct Intersector {
     ray_buffer: Option<Buffer>,
     intersection_buffer: Option<Buffer>,
     output_image: Option<Texture>,
-    output_image_size: (usize, usize, usize)
+    output_image_size: (usize, usize, usize),
+    test_pipeline_state: ComputePipelineState
 }
 
 impl Intersector {
@@ -48,9 +51,30 @@ impl Intersector {
         ray_intersector.set_intersection_stride(8 * std::mem::size_of::<f32>() as i64);
         ray_intersector.set_intersection_data_type(4); // MPSIntersectionDataTypeDistancePrimitiveIndexCoordinates
 
-        let mut val = Intersector {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None, output_image: None, output_image_size: (0,0,0)};
+        // Pipeline states:
+        let test_pipeline_state = Self::create_compute_pipeline_state(device, "src/test.metal", "imageFillTest");
+
+        let mut val = Intersector {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None,
+            output_image: None, output_image_size: (0,0,0), test_pipeline_state};
         val.resize(device, 800, 600);
         val
+    }
+
+    fn create_compute_pipeline_state(device: &DeviceRef, file_path: &str, function_name: &str) -> ComputePipelineState
+    {
+        let mut file = File::open(file_path).unwrap();
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+
+        let options = CompileOptions::new();
+        let library = device.new_library_with_source(&contents, &options).unwrap();
+        let compute_function = library.get_function(function_name, None).unwrap();
+
+        let pipeline_state_descriptor = ComputePipelineDescriptor::new();
+        pipeline_state_descriptor.set_compute_function(Some(&compute_function));
+
+        device.new_compute_pipeline_state_with_function(&pipeline_state_descriptor.compute_function().unwrap()).unwrap()
+
     }
 
     pub fn resize(&mut self, device: &DeviceRef, width: usize, height: usize)
@@ -83,7 +107,15 @@ impl Intersector {
 
     pub fn encode_into_test(&self, command_buffer: &CommandBufferRef)
     {
+        let encoder = command_buffer.new_compute_command_encoder();
+        encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
+        encoder.set_compute_pipeline_state(&self.test_pipeline_state);
 
+        let thread_groups_count = MTLSize {width: self.output_image_size.0 as u64, height: self.output_image_size.1 as u64, depth: self.output_image_size.2 as u64};
+        let threads_per_thread_group = MTLSize {width: 8, height: 8, depth: 1};
+        encoder.dispatch_thread_groups(thread_groups_count, threads_per_thread_group);
+
+        encoder.end_encoding();
     }
 
 }
