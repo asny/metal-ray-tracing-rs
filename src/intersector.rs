@@ -16,7 +16,7 @@ pub struct Intersector {
 
 impl Intersector {
 
-    pub fn new(device: &DeviceRef) -> Intersector
+    pub fn new(device: &DeviceRef, width: usize, height: usize) -> Intersector
     {
         // Triangle data
         let vertex_data = [
@@ -56,7 +56,7 @@ impl Intersector {
 
         let mut val = Intersector {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None,
             output_image: None, output_image_size: (0,0,0), test_pipeline_state};
-        val.resize(device, 800, 600);
+        val.resize(device, width, height);
         val
     }
 
