@@ -4,6 +4,9 @@ use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
 
+const SIZE_OF_RAY: usize = 8 * std::mem::size_of::<f32>();
+const SIZE_OF_INTERSECTION: usize = 3 * std::mem::size_of::<f32>() + std::mem::size_of::<u64>();
+
 pub struct Intersector {
     acceleration_structure: TriangleAccelerationStructure,
     ray_intersector: RayIntersector,
@@ -48,9 +51,9 @@ impl Intersector {
 
         // Setup ray intersector:
         let ray_intersector = RayIntersector::new(&device);
-        ray_intersector.set_ray_stride(8 * std::mem::size_of::<f32>() as i64);
+        ray_intersector.set_ray_stride(SIZE_OF_RAY as i64);
         ray_intersector.set_ray_data_type(1); // MPSRayDataTypeOriginMinDistanceDirectionMaxDistance
-        ray_intersector.set_intersection_stride(8 * std::mem::size_of::<f32>() as i64);
+        ray_intersector.set_intersection_stride(SIZE_OF_INTERSECTION as i64);
         ray_intersector.set_intersection_data_type(4); // MPSIntersectionDataTypeDistancePrimitiveIndexCoordinates
 
         // Pipeline states:
@@ -94,8 +97,8 @@ impl Intersector {
         texture_descriptor.set_usage(MTLTextureUsage::ShaderWrite);
         self.output_image = Some(device.new_texture(&texture_descriptor));
 
-        self.ray_buffer = Some(device.new_buffer((ray_count * 8 * std::mem::size_of::<f32>()) as u64, MTLResourceOptions::StorageModePrivate));
-        self.intersection_buffer = Some(device.new_buffer((ray_count * 8 * std::mem::size_of::<f32>()) as u64, MTLResourceOptions::StorageModePrivate));
+        self.ray_buffer = Some(device.new_buffer((ray_count * SIZE_OF_RAY) as u64, MTLResourceOptions::StorageModePrivate));
+        self.intersection_buffer = Some(device.new_buffer((ray_count * SIZE_OF_INTERSECTION) as u64, MTLResourceOptions::StorageModePrivate));
 
     }
 
