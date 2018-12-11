@@ -5,16 +5,15 @@ use std::mem;
 pub struct Intersector {
     acceleration_structure: TriangleAccelerationStructure,
     ray_intersector: RayIntersector,
-    ray_buffer: Buffer,
-    intersection_buffer: Buffer,
-    ray_count: u64
+    ray_buffer: Option<Buffer>,
+    intersection_buffer: Option<Buffer>,
+    output_image_size: (usize, usize, usize)
 }
 
 impl Intersector {
 
     pub fn new(device: &DeviceRef) -> Intersector
     {
-        let ray_count = 1;
         // Triangle data
         let vertex_data = [
             0.25f32, 0.25, 0.0,
@@ -48,19 +47,36 @@ impl Intersector {
         ray_intersector.set_intersection_stride(8 * std::mem::size_of::<f32>() as i64);
         ray_intersector.set_intersection_data_type(4); // MPSIntersectionDataTypeDistancePrimitiveIndexCoordinates
 
-        // Create buffers:
-        let ray_buffer = device.new_buffer(ray_count * 8 * std::mem::size_of::<f32>() as u64, MTLResourceOptions::StorageModePrivate);
-        let intersection_buffer = device.new_buffer(ray_count * 8 * std::mem::size_of::<f32>() as u64, MTLResourceOptions::StorageModePrivate);
+        let mut val = Intersector {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None, output_image_size: (0,0,0)};
+        val.resize(device, 800, 600);
+        val
+    }
 
-        Intersector {acceleration_structure, ray_intersector, ray_buffer, intersection_buffer, ray_count}
+    pub fn resize(&mut self, device: &DeviceRef, width: usize, height: usize)
+    {
+        self.output_image_size = (width, height, 1);
+        let ray_count = width * height;
+
+
+
+        self.ray_buffer = Some(device.new_buffer((ray_count * 8 * std::mem::size_of::<f32>()) as u64, MTLResourceOptions::StorageModePrivate));
+        self.intersection_buffer = Some(device.new_buffer((ray_count * 8 * std::mem::size_of::<f32>()) as u64, MTLResourceOptions::StorageModePrivate));
+
     }
 
     pub fn encode_into(&self, command_buffer: &CommandBufferRef)
     {
-        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer, 0, //MPSIntersectionTypeNearest
-                                                                   &self.ray_buffer, 0,
-                                                                   &self.intersection_buffer, 0,
-                                                                   self.ray_count, &self.acceleration_structure);
+        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                   0, //MPSIntersectionTypeNearest
+                                                                   self.ray_buffer.as_ref().unwrap(), 0,
+                                                                   self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                   (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                   &self.acceleration_structure);
+    }
+
+    pub fn encode_into_test(&self, command_buffer: &CommandBufferRef)
+    {
+
     }
 
 }
