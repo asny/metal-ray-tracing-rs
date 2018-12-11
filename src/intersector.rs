@@ -118,4 +118,9 @@ impl Intersector {
         encoder.end_encoding();
     }
 
+    pub fn output_texture(&self) -> &TextureRef
+    {
+        self.output_image.as_ref().unwrap()
+    }
+
 }

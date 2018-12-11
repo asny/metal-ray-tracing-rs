@@ -71,7 +71,7 @@ fn main() {
     let draw_size = winit_window.get_inner_size().unwrap();
     layer.set_drawable_size(draw_size.width as f64, draw_size.height as f64);
 
-    let pipeline_state = create_blit_pipeline_state(&device);
+    let blit_pipeline_state = create_blit_pipeline_state(&device);
     let command_queue = device.new_command_queue();
 
     let intersector = intersector::Intersector::new(&device, draw_size.width as usize, draw_size.height as usize);
@@ -91,12 +91,13 @@ fn main() {
             let render_pass_descriptor = prepare_render_pass_descriptor(drawable.texture());
 
             let command_buffer = command_queue.new_command_buffer();
-            let parallel_encoder = command_buffer.new_parallel_render_command_encoder(&render_pass_descriptor);
-            let encoder = parallel_encoder.render_command_encoder();
-            encoder.set_render_pipeline_state(&pipeline_state);
+            intersector.encode_into_test(command_buffer);
+
+            let encoder = command_buffer.new_render_command_encoder(&render_pass_descriptor);
+            encoder.set_render_pipeline_state(&blit_pipeline_state);
+            encoder.set_fragment_texture(0, Some(intersector.output_texture()));
             encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 3);
             encoder.end_encoding();
-            parallel_encoder.end_encoding();
 
             render_pass_descriptor.color_attachments().object_at(0).unwrap().set_load_action(MTLLoadAction::DontCare);
 
