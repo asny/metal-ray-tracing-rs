@@ -38,12 +38,20 @@ impl Intersector {
 
         // Ray intersector:
         let ray_intersector = RayIntersector::new(&device);
-        ray_intersector.set_ray_stride(800*600);
+        ray_intersector.set_ray_stride(8 * std::mem::size_of::<f32>() as i64);
         ray_intersector.set_ray_data_type(1); // MPSRayDataTypeOriginMinDistanceDirectionMaxDistance
-        ray_intersector.set_intersection_stride(800*600);
+        ray_intersector.set_intersection_stride(8 * std::mem::size_of::<f32>() as i64);
         ray_intersector.set_intersection_data_type(4); // MPSIntersectionDataTypeDistancePrimitiveIndexCoordinates
 
         Intersector {acceleration_structure, ray_intersector}
+    }
+
+    pub fn encode_into(&self, command_buffer: &CommandBufferRef, ray_buffer: &BufferRef, intersection_buffer: &BufferRef, ray_count: u64)
+    {
+        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer, 0, //MPSIntersectionTypeNearest
+                                                                   ray_buffer, 0,
+                                                                   intersection_buffer, 0,
+                                                                   ray_count, &self.acceleration_structure);
     }
 
 }
