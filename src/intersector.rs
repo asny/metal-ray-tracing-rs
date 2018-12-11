@@ -123,11 +123,7 @@ impl Intersector {
 
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
         encoder.set_compute_pipeline_state(&self.ray_generator_pipeline_state);
-        let threads_per_thread_group = MTLSize {width: 8, height: 8, depth: 1};
-        let thread_groups_count = MTLSize {width: self.output_image_size.0 as u64 / threads_per_thread_group.width,
-            height: self.output_image_size.1 as u64 / threads_per_thread_group.height,
-            depth: self.output_image_size.2 as u64 / threads_per_thread_group.depth};
-        encoder.dispatch_thread_groups(thread_groups_count, threads_per_thread_group);
+        self.dispatch_thread_groups(&encoder);
 
         encoder.end_encoding();
     }
@@ -139,11 +135,7 @@ impl Intersector {
         encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
         encoder.set_buffer(0, Some(self.intersection_buffer.as_ref().unwrap()), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
-        let threads_per_thread_group = MTLSize {width: 8, height: 8, depth: 1};
-        let thread_groups_count = MTLSize {width: self.output_image_size.0 as u64 / threads_per_thread_group.width,
-            height: self.output_image_size.1 as u64 / threads_per_thread_group.height,
-            depth: self.output_image_size.2 as u64 / threads_per_thread_group.depth};
-        encoder.dispatch_thread_groups(thread_groups_count, threads_per_thread_group);
+        self.dispatch_thread_groups(&encoder);
 
         encoder.end_encoding();
     }
@@ -151,16 +143,21 @@ impl Intersector {
     pub fn encode_into_test(&self, command_buffer: &CommandBufferRef)
     {
         let encoder = command_buffer.new_compute_command_encoder();
+
         encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
         encoder.set_compute_pipeline_state(&self.test_pipeline_state);
+        self.dispatch_thread_groups(&encoder);
 
+        encoder.end_encoding();
+    }
+
+    fn dispatch_thread_groups(&self, encoder: &ComputeCommandEncoderRef)
+    {
         let threads_per_thread_group = MTLSize {width: 8, height: 8, depth: 1};
         let thread_groups_count = MTLSize {width: self.output_image_size.0 as u64 / threads_per_thread_group.width,
             height: self.output_image_size.1 as u64 / threads_per_thread_group.height,
             depth: self.output_image_size.2 as u64 / threads_per_thread_group.depth};
         encoder.dispatch_thread_groups(thread_groups_count, threads_per_thread_group);
-
-        encoder.end_encoding();
     }
 
     pub fn output_texture(&self) -> &TextureRef
