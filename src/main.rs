@@ -87,8 +87,24 @@ fn main() {
     while running {
         events_loop.poll_events(|event| {
             match event {
-                winit::Event::WindowEvent{ event: winit::WindowEvent::CloseRequested, .. } => running = false,
-                _ => ()
+                winit::Event::WindowEvent { event, .. } =>
+                    match event {
+                        winit::WindowEvent::CloseRequested => running = false,
+                        winit::WindowEvent::KeyboardInput {
+                            input:
+                                winit::KeyboardInput {
+                                    virtual_keycode: Some(virtual_code),
+                                    state,
+                                    ..
+                                },
+                            ..
+                        } => match (virtual_code, state) {
+                            (winit::VirtualKeyCode::Escape, _) => running = false,
+                            _ => (),
+                        },
+                        _ => (),
+                },
+                _ => {}
             }
         });
 
