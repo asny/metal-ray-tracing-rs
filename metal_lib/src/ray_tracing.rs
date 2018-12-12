@@ -62,7 +62,7 @@ impl RayIntersector {
 }
 
 impl RayIntersectorRef {
-    pub fn set_ray_stride(&self, stride: i64) {
+    pub fn set_ray_stride(&self, stride: NSUInteger) {
         unsafe {
             msg_send![self, setRayStride: stride];
         }
@@ -74,7 +74,7 @@ impl RayIntersectorRef {
         }
     }
 
-    pub fn set_intersection_stride(&self, stride: i64) {
+    pub fn set_intersection_stride(&self, stride: NSUInteger) {
         unsafe {
             msg_send![self, setIntersectionStride: stride];
         }

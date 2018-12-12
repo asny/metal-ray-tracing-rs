@@ -51,9 +51,9 @@ impl Intersector {
 
         // Setup ray intersector:
         let ray_intersector = RayIntersector::new(&device);
-        ray_intersector.set_ray_stride(SIZE_OF_RAY as i64);
+        ray_intersector.set_ray_stride(SIZE_OF_RAY as u64);
         ray_intersector.set_ray_data_type(MPSRayDataType::originMinDistanceDirectionMaxDistance);
-        ray_intersector.set_intersection_stride(SIZE_OF_INTERSECTION as i64);
+        ray_intersector.set_intersection_stride(SIZE_OF_INTERSECTION as u64);
         ray_intersector.set_intersection_data_type(MPSIntersectionDataType::distancePrimitiveIndexCoordinates);
 
         // Pipeline states:
