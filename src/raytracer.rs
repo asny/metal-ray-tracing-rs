@@ -25,6 +25,7 @@ impl RayTracer {
     {
         let vertex_data = mesh.attribute("position").unwrap().data.clone();
         let index_data = mesh.indices().clone();
+        let no_triangles = mesh.no_faces();
 
         // Build acceleration structure:
         let vertex_buffer = device.new_buffer_with_data( unsafe { mem::transmute(vertex_data.as_ptr()) },
@@ -39,7 +40,7 @@ impl RayTracer {
         acceleration_structure.set_vertex_stride((3 * mem::size_of::<f32>()) as i64);
         acceleration_structure.set_index_buffer(Some(&index_buffer));
         acceleration_structure.set_index_type(MPSDataType::uInt32);
-        acceleration_structure.set_triangle_count(mesh.no_faces() as i64);
+        acceleration_structure.set_triangle_count(no_triangles as i64);
         acceleration_structure.rebuild();
 
         // Setup ray intersector:

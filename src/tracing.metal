@@ -27,12 +27,18 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
 {
+    const float3 origin = float3(0.0f, 1.0f, 2.1f);
+
+    float aspect = float(size.x) / float(size.y);
+    float2 uv = float2(coordinates) / float2(size - 1) * 2.0f - 1.0f;
+
+    float3 direction = normalize(float3(aspect * uv.x, uv.y, -1.0f));
+
     uint rayIndex = coordinates.x + coordinates.y * size.x;
-    float2 uv = float2(coordinates) / float2(size - 1);
-    rays[rayIndex].origin = packed_float3(1.0 + 5.0*uv.x - 3.0, 2.5 + 5.0*uv.y - 3.0, 5.0);
-    rays[rayIndex].direction = normalize(packed_float3(-0.1, -0.5, -1.0));
+    rays[rayIndex].origin = origin;
+    rays[rayIndex].direction = direction;
     rays[rayIndex].minDistance = 0.0f;
-    rays[rayIndex].maxDistance = 10.0f;
+    rays[rayIndex].maxDistance = INFINITY;
 }
 
 kernel void handleIntersections(texture2d<float, access::write> image [[texture(0)]],
