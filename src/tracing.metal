@@ -29,10 +29,10 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
     float2 uv = float2(coordinates) / float2(size - 1);
-    rays[rayIndex].origin = packed_float3(uv.x, uv.y, -1.0);
-    rays[rayIndex].direction = packed_float3(0.0, 0.0, 1.0);
+    rays[rayIndex].origin = packed_float3(1.0 + 5.0*uv.x - 3.0, 2.5 + 5.0*uv.y - 3.0, 5.0);
+    rays[rayIndex].direction = normalize(packed_float3(-0.1, -0.5, -1.0));
     rays[rayIndex].minDistance = 0.0f;
-    rays[rayIndex].maxDistance = 2.0f;
+    rays[rayIndex].maxDistance = 10.0f;
 }
 
 kernel void handleIntersections(texture2d<float, access::write> image [[texture(0)]],

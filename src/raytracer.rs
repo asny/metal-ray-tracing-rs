@@ -21,17 +21,10 @@ pub struct RayTracer {
 
 impl RayTracer {
 
-    pub fn new(device: &DeviceRef, width: usize, height: usize) -> RayTracer
+    pub fn new(device: &DeviceRef, mesh: &geo_proc::mesh::StaticMesh, width: usize, height: usize) -> RayTracer
     {
-        // Triangle data
-        let vertex_data = [
-            0.25f32, 0.25, 0.0,
-            0.75, 0.25, 0.0,
-            0.50, 0.75, 0.0
-        ];
-        let index_data = [
-            0u32, 1, 2
-        ];
+        let vertex_data = mesh.attribute("position").unwrap().data.clone();
+        let index_data = mesh.indices().clone();
 
         // Build acceleration structure:
         let vertex_buffer = device.new_buffer_with_data( unsafe { mem::transmute(vertex_data.as_ptr()) },
@@ -46,7 +39,7 @@ impl RayTracer {
         acceleration_structure.set_vertex_stride((3 * mem::size_of::<f32>()) as i64);
         acceleration_structure.set_index_buffer(Some(&index_buffer));
         acceleration_structure.set_index_type(MPSDataType::uInt32);
-        acceleration_structure.set_triangle_count(1);
+        acceleration_structure.set_triangle_count(mesh.no_faces() as i64);
         acceleration_structure.rebuild();
 
         // Setup ray intersector:
