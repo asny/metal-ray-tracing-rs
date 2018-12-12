@@ -7,6 +7,13 @@ use std::io::prelude::*;
 const SIZE_OF_RAY: usize = 32;
 const SIZE_OF_INTERSECTION: usize = 16;
 
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, Debug)]
+struct Triangle
+{
+    material_index: u32
+}
+
 pub struct RayTracer {
     acceleration_structure: TriangleAccelerationStructure,
     ray_intersector: RayIntersector,
@@ -32,7 +39,7 @@ impl RayTracer {
             println!("{:?}", model);
             let index = (vertex_data.len() / 3) as u32;
             vertex_data.append(&mut model.mesh.positions.clone());
-            triangle_data.append(&mut vec![model.mesh.material_id.unwrap() as u32; model.mesh.indices.len()/3]);
+            triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
             for i in model.mesh.indices {
                 index_data.push(index + i);
             }
@@ -49,7 +56,7 @@ impl RayTracer {
                                      (index_data.len() * mem::size_of::<u32>()) as u64,
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
         let triangle_buffer = device.new_buffer_with_data( unsafe { mem::transmute(triangle_data.as_ptr()) },
-                                     (triangle_data.len() * mem::size_of::<u32>()) as u64,
+                                     (triangle_data.len() * mem::size_of::<Triangle>()) as u64,
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
 
         let acceleration_structure = TriangleAccelerationStructure::new(&device);
