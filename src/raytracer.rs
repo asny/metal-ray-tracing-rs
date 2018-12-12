@@ -22,8 +22,25 @@ pub struct RayTracer {
 
 impl RayTracer {
 
-    pub fn new(device: &DeviceRef, mesh: &geo_proc::mesh::StaticMesh, width: usize, height: usize) -> RayTracer
+    pub fn new(device: &DeviceRef, width: usize, height: usize) -> RayTracer
     {
+        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/CornellBox-Original.obj")).unwrap();
+        for model in models {
+            println!("{:?}", model);
+        }
+        for material in materials {
+            println!("{:?}", material);
+        }
+
+        let meshes = geo_proc::loader::load_obj("../../Data/3D models/cornellbox/CornellBox-Original.obj").unwrap();
+        let mut merged_mesh = geo_proc::mesh::DynamicMesh::new(Vec::new(), None);
+        for mesh in meshes {
+            merged_mesh.merge_with(&mesh.to_dynamic(), &std::collections::HashMap::new()).unwrap();
+        }
+        merged_mesh.update_vertex_normals();
+
+        let mesh = merged_mesh.to_static();
+
         let vertex_data = mesh.attribute("position").unwrap().data.clone();
         let index_data = mesh.indices().clone();
         let no_triangles = mesh.no_faces();

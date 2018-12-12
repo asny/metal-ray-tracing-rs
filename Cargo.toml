@@ -8,5 +8,6 @@ edition = "2018"
 cocoa = "0.18"
 objc = "0.2.5"
 winit = "0.17"
+tobj = "0.1.6"
 geo-proc = { git = "https://github.com/asny/geo-proc" }
 metal = { path = "metal_lib/" }

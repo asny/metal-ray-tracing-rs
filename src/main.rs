@@ -79,13 +79,7 @@ fn main() {
     let blit_pipeline_state = create_blit_pipeline_state(&device);
     let command_queue = device.new_command_queue();
 
-    let meshes = geo_proc::loader::load_obj("../../Data/3D models/cornellbox/CornellBox-Original.obj").unwrap();
-    let mut merged_mesh = geo_proc::mesh::DynamicMesh::new(Vec::new(), None);
-    for mesh in meshes {
-        merged_mesh.merge_with(&mesh.to_dynamic(), &std::collections::HashMap::new()).unwrap();
-    }
-    merged_mesh.update_vertex_normals();
-    let raytracer = raytracer::RayTracer::new(&device, &merged_mesh.to_static(),draw_size.width as usize, draw_size.height as usize);
+    let raytracer = raytracer::RayTracer::new(&device, draw_size.width as usize, draw_size.height as usize);
 
     let mut pool = unsafe { NSAutoreleasePool::new(cocoa::base::nil) };
     let mut running = true;
