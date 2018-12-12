@@ -23,6 +23,26 @@ struct Intersection {
     float2 coordinates;
 };
 
+enum MaterialType
+{
+    Diffuse = 0,
+    Metal  = 1,
+    Dielectric = 2
+};
+
+struct Material
+{
+    packed_float3 diffuse;
+    uint type = MaterialType::Diffuse;
+
+    packed_float3 emissive;
+};
+
+struct Triangle
+{
+    uint materialIndex;
+};
+
 kernel void generateRays(device Ray* rays [[buffer(0)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
@@ -43,14 +63,20 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
 
 kernel void handleIntersections(texture2d<float, access::write> image [[texture(0)]],
                                 device const Intersection* intersections [[buffer(0)]],
+                                device const Material* materials [[buffer(1)]],
+                                device const Triangle* triangles [[buffer(2)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
-    device const Intersection& i = intersections[rayIndex];
-    if (i.distance > 0.0f)
-    {
-        float w = 1.0 - i.coordinates.x - i.coordinates.y;
-        image.write(float4(i.coordinates, w, 1.0), coordinates);
-    }
+    device const Intersection& intersection = intersections[rayIndex];
+    if (intersection.distance < 0.00001)
+        return;
+
+    device const Triangle& triangle = triangles[intersection.primitiveIndex];
+    device const Material& material = materials[triangle.materialIndex];
+    image.write(float4(material.diffuse, 1.0), coordinates);
+
+    //image.write(float4(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y, 1.0), coordinates);
+    image.write(float4(float3(triangle.materialIndex/32.0), 1.0), coordinates);
 }
