@@ -24,27 +24,22 @@ impl RayTracer {
 
     pub fn new(device: &DeviceRef, width: usize, height: usize) -> RayTracer
     {
+        let mut vertex_data = Vec::new();
+        let mut index_data = Vec::new();
+        let mut triangle_data = Vec::new();
         let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/CornellBox-Original.obj")).unwrap();
         for model in models {
             println!("{:?}", model);
+            let index = (vertex_data.len() / 3) as u32;
+            vertex_data.append(&mut model.mesh.positions.clone());
+            triangle_data.append(&mut vec![model.mesh.material_id.unwrap() as u32; model.mesh.indices.len()/3]);
+            for i in model.mesh.indices {
+                index_data.push(index + i);
+            }
         }
         for material in materials {
             println!("{:?}", material);
         }
-
-        let meshes = geo_proc::loader::load_obj("../../Data/3D models/cornellbox/CornellBox-Original.obj").unwrap();
-        let mut merged_mesh = geo_proc::mesh::DynamicMesh::new(Vec::new(), None);
-        for mesh in meshes {
-            merged_mesh.merge_with(&mesh.to_dynamic(), &std::collections::HashMap::new()).unwrap();
-        }
-        merged_mesh.update_vertex_normals();
-
-        let mesh = merged_mesh.to_static();
-
-        let vertex_data = mesh.attribute("position").unwrap().data.clone();
-        let index_data = mesh.indices().clone();
-        let no_triangles = mesh.no_faces();
-        let triangle_data: Vec<u32> = (0..no_triangles as u32).collect();
 
         // Build acceleration structure:
         let vertex_buffer = device.new_buffer_with_data( unsafe { mem::transmute(vertex_data.as_ptr()) },
@@ -62,7 +57,7 @@ impl RayTracer {
         acceleration_structure.set_vertex_stride((3 * mem::size_of::<f32>()) as i64);
         acceleration_structure.set_index_buffer(Some(&index_buffer));
         acceleration_structure.set_index_type(MPSDataType::uInt32);
-        acceleration_structure.set_triangle_count(no_triangles as i64);
+        acceleration_structure.set_triangle_count((index_data.len() / 3) as i64);
         acceleration_structure.rebuild();
 
         // Setup ray intersector:
