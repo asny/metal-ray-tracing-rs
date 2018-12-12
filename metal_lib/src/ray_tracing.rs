@@ -1,5 +1,17 @@
 
 use super::*;
+use cocoa::foundation::{NSUInteger};
+
+#[repr(u64)]
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub enum MPSIntersectionDataType {
+    distance = 0,
+    distancePrimitiveIndex = 1,
+    distancePrimitiveIndexCoordinates = 2,
+    distancePrimitiveIndexInstanceIndex = 3,
+    distancePrimitiveIndexInstanceIndexCoordinates = 4
+}
 
 pub enum MPSRayIntersector {}
 
@@ -42,7 +54,7 @@ impl RayIntersectorRef {
         }
     }
 
-    pub fn set_intersection_data_type(&self, data_type: u64) {
+    pub fn set_intersection_data_type(&self, data_type: MPSIntersectionDataType) {
         unsafe {
             msg_send![self, setIntersectionDataType: data_type];
         }

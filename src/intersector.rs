@@ -54,7 +54,7 @@ impl Intersector {
         ray_intersector.set_ray_stride(SIZE_OF_RAY as i64);
         ray_intersector.set_ray_data_type(1); // MPSRayDataTypeOriginMinDistanceDirectionMaxDistance
         ray_intersector.set_intersection_stride(SIZE_OF_INTERSECTION as i64);
-        ray_intersector.set_intersection_data_type(2); // MPSIntersectionDataTypeDistancePrimitiveIndexCoordinates
+        ray_intersector.set_intersection_data_type(MPSIntersectionDataType::distancePrimitiveIndexCoordinates);
 
         // Pipeline states:
         let test_pipeline_state = Self::create_compute_pipeline_state(device, "src/test.metal", "imageFillTest");
