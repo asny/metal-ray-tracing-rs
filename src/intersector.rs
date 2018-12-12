@@ -45,7 +45,7 @@ impl Intersector {
         acceleration_structure.set_vertex_buffer(Some(&vertex_buffer));
         acceleration_structure.set_vertex_stride((3 * mem::size_of::<f32>()) as i64);
         acceleration_structure.set_index_buffer(Some(&index_buffer));
-        acceleration_structure.set_index_type(32); // MPSDataType: uInt32
+        acceleration_structure.set_index_type(MPSDataType::uInt32);
         acceleration_structure.set_triangle_count(1);
         acceleration_structure.rebuild();
 

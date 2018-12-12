@@ -22,6 +22,23 @@ pub enum MPSRayDataType {
     originMaskDirectionMaxDistance = 2
 }
 
+#[repr(u64)]
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, Debug)]
+pub enum MPSDataType {
+    invalid = 0,
+    float16 = 268435472,
+    int16 = 536870928,
+    int8 = 536870920,
+    normalizedBit = 1073741824,
+    signedBit = 536870912,
+    uInt8 = 8,
+    uInt16 = 16,
+    uInt32 = 32,
+    unorm1 = 1073741825,
+    unorm8 = 1073741832
+}
+
 pub enum MPSRayIntersector {}
 
 foreign_obj_type! {
@@ -123,7 +140,7 @@ impl TriangleAccelerationStructureRef {
         }
     }
 
-    pub fn set_index_type(&self, index_type: u32) {
+    pub fn set_index_type(&self, index_type: MPSDataType) {
         unsafe {
             msg_send![self, setIndexType: index_type];
         }
