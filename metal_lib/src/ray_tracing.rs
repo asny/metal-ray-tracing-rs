@@ -13,6 +13,15 @@ pub enum MPSIntersectionDataType {
     distancePrimitiveIndexInstanceIndexCoordinates = 4
 }
 
+#[repr(u64)]
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub enum MPSRayDataType {
+    originDirection = 0,
+    originMinDistanceDirectionMaxDistance = 1,
+    originMaskDirectionMaxDistance = 2
+}
+
 pub enum MPSRayIntersector {}
 
 foreign_obj_type! {
@@ -42,7 +51,7 @@ impl RayIntersectorRef {
         }
     }
 
-    pub fn set_ray_data_type(&self, data_type: u64) {
+    pub fn set_ray_data_type(&self, data_type: MPSRayDataType) {
         unsafe {
             msg_send![self, setRayDataType: data_type];
         }
