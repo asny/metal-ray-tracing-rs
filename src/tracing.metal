@@ -33,9 +33,6 @@ enum MaterialType
 struct Material
 {
     packed_float3 diffuse;
-    uint type = MaterialType::Diffuse;
-
-    packed_float3 emissive;
 };
 
 struct Triangle
@@ -78,5 +75,5 @@ kernel void handleIntersections(texture2d<float, access::write> image [[texture(
     image.write(float4(material.diffuse, 1.0), coordinates);
 
     //image.write(float4(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y, 1.0), coordinates);
-    image.write(float4(float3(triangle.materialIndex/7.0), 1.0), coordinates);
+    //image.write(float4(float3(triangle.materialIndex/7.0), 1.0), coordinates);
 }

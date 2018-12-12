@@ -7,11 +7,16 @@ use std::io::prelude::*;
 const SIZE_OF_RAY: usize = 32;
 const SIZE_OF_INTERSECTION: usize = 16;
 
-#[allow(non_camel_case_types)]
 #[derive(Copy, Clone, Debug)]
 struct Triangle
 {
     material_index: u32
+}
+
+#[derive(Copy, Clone, Debug)]
+struct Material
+{
+    diffuse: [f32; 3]
 }
 
 pub struct RayTracer {
@@ -20,6 +25,7 @@ pub struct RayTracer {
     ray_buffer: Option<Buffer>,
     intersection_buffer: Option<Buffer>,
     triangle_buffer: Buffer,
+    material_buffer: Buffer,
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
     test_pipeline_state: ComputePipelineState,
@@ -44,8 +50,11 @@ impl RayTracer {
                 index_data.push(index + i);
             }
         }
+
+        let mut material_data = Vec::new();
         for material in materials {
             println!("{:?}", material);
+            material_data.push(Material { diffuse: material.diffuse });
         }
 
         // Build acceleration structure:
@@ -57,6 +66,9 @@ impl RayTracer {
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
         let triangle_buffer = device.new_buffer_with_data( unsafe { mem::transmute(triangle_data.as_ptr()) },
                                      (triangle_data.len() * mem::size_of::<Triangle>()) as u64,
+                                     MTLResourceOptions::CPUCacheModeDefaultCache);
+        let material_buffer = device.new_buffer_with_data( unsafe { mem::transmute(material_data.as_ptr()) },
+                                     (material_data.len() * mem::size_of::<Material>()) as u64,
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
 
         let acceleration_structure = TriangleAccelerationStructure::new(&device);
@@ -79,7 +91,7 @@ impl RayTracer {
         let ray_generator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "generateRays");
         let intersection_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleIntersections");
 
-        let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, ray_buffer: None, intersection_buffer: None,
+        let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, ray_buffer: None, intersection_buffer: None,
             output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state};
         val.resize(device, width, height);
         val
@@ -153,6 +165,7 @@ impl RayTracer {
 
         encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
         encoder.set_buffer(0, Some(self.intersection_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(1, Some(&self.material_buffer), 0);
         encoder.set_buffer(2, Some(&self.triangle_buffer), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
