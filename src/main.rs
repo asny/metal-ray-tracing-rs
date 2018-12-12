@@ -74,7 +74,7 @@ fn main() {
     let blit_pipeline_state = create_blit_pipeline_state(&device);
     let command_queue = device.new_command_queue();
 
-    let intersector = intersector::Intersector::new(&device, draw_size.width as usize, draw_size.height as usize);
+    let intersector = intersector::RayTracer::new(&device, draw_size.width as usize, draw_size.height as usize);
 
     let mut pool = unsafe { NSAutoreleasePool::new(cocoa::base::nil) };
     let mut running = true;

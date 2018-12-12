@@ -7,7 +7,7 @@ use std::io::prelude::*;
 const SIZE_OF_RAY: usize = 32;
 const SIZE_OF_INTERSECTION: usize = 16;
 
-pub struct Intersector {
+pub struct RayTracer {
     acceleration_structure: TriangleAccelerationStructure,
     ray_intersector: RayIntersector,
     ray_buffer: Option<Buffer>,
@@ -19,9 +19,9 @@ pub struct Intersector {
     intersection_handler_pipeline_state: ComputePipelineState
 }
 
-impl Intersector {
+impl RayTracer {
 
-    pub fn new(device: &DeviceRef, width: usize, height: usize) -> Intersector
+    pub fn new(device: &DeviceRef, width: usize, height: usize) -> RayTracer
     {
         // Triangle data
         let vertex_data = [
@@ -61,7 +61,7 @@ impl Intersector {
         let ray_generator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "generateRays");
         let intersection_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleIntersections");
 
-        let mut val = Intersector {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None,
+        let mut val = RayTracer {acceleration_structure, ray_intersector, ray_buffer: None, intersection_buffer: None,
             output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state};
         val.resize(device, width, height);
         val
