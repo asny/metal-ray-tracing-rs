@@ -34,16 +34,21 @@ fn create_blit_pipeline_state(device: &DeviceRef) -> RenderPipelineState
     device.new_render_pipeline_state(&pipeline_state_descriptor).unwrap()
 }
 
-fn prepare_render_pass_descriptor<'a>(texture: &TextureRef) -> &'a RenderPassDescriptorRef
+fn encode_blit_into(command_buffer: &CommandBufferRef, blit_pipeline_state: &RenderPipelineStateRef, input_texture: &TextureRef, output_texture: &TextureRef)
 {
     let descriptor = RenderPassDescriptor::new();
     let color_attachment = descriptor.color_attachments().object_at(0).unwrap();
 
-    color_attachment.set_texture(Some(texture));
+    color_attachment.set_texture(Some(output_texture));
     color_attachment.set_load_action(MTLLoadAction::Clear);
     color_attachment.set_clear_color(MTLClearColor::new(0.5, 0.2, 0.2, 1.0));
     color_attachment.set_store_action(MTLStoreAction::Store);
-    descriptor
+
+    let encoder = command_buffer.new_render_command_encoder(&descriptor);
+    encoder.set_render_pipeline_state(blit_pipeline_state);
+    encoder.set_fragment_texture(0, Some(input_texture));
+    encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 3);
+    encoder.end_encoding();
 }
 
 fn main() {
@@ -88,18 +93,10 @@ fn main() {
         });
 
         if let Some(drawable) = layer.next_drawable() {
-            let render_pass_descriptor = prepare_render_pass_descriptor(drawable.texture());
 
             let command_buffer = command_queue.new_command_buffer();
             intersector.encode_into(command_buffer);
-
-            let encoder = command_buffer.new_render_command_encoder(&render_pass_descriptor);
-            encoder.set_render_pipeline_state(&blit_pipeline_state);
-            encoder.set_fragment_texture(0, Some(intersector.output_texture()));
-            encoder.draw_primitives(MTLPrimitiveType::Triangle, 0, 3);
-            encoder.end_encoding();
-
-            render_pass_descriptor.color_attachments().object_at(0).unwrap().set_load_action(MTLLoadAction::DontCare);
+            encode_blit_into(&command_buffer, &blit_pipeline_state, intersector.output_texture(), &drawable.texture());
 
             command_buffer.present_drawable(&drawable);
             command_buffer.commit();
