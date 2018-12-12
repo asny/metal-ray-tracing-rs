@@ -61,9 +61,9 @@ impl RayIntersectorRef {
     }
 
     pub fn encode_intersection_to_command_buffer(&self, command_buffer: &CommandBufferRef, intersection_type: u64,
-                                                 ray_buffer: &BufferRef, ray_buffer_offset: u64,
-                                                 intersection_buffer: &BufferRef, intersection_buffer_offset: u64,
-                                                 ray_count: u64, acceleration_structure: &TriangleAccelerationStructureRef)
+                                                 ray_buffer: &BufferRef, ray_buffer_offset: NSUInteger,
+                                                 intersection_buffer: &BufferRef, intersection_buffer_offset: NSUInteger,
+                                                 ray_count: NSUInteger, acceleration_structure: &TriangleAccelerationStructureRef)
     {
         unsafe {
             msg_send![self, encodeIntersectionToCommandBuffer: command_buffer
