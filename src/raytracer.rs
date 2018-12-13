@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use rand::prelude::*;
 
-const SIZE_OF_RAY: usize = 32;
+const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
 const NOISE_BLOCK_SIZE: usize = 128;
 
@@ -32,6 +32,7 @@ pub struct RayTracer {
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
     test_pipeline_state: ComputePipelineState,
+    accumulator_pipeline_state: ComputePipelineState,
     ray_generator_pipeline_state: ComputePipelineState,
     intersection_handler_pipeline_state: ComputePipelineState
 }
@@ -94,9 +95,10 @@ impl RayTracer {
         let test_pipeline_state = Self::create_compute_pipeline_state(device, "src/test.metal", "imageFillTest");
         let ray_generator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "generateRays");
         let intersection_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleIntersections");
+        let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
         let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, noise_buffer, ray_buffer: None, intersection_buffer: None,
-            output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state};
+            output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
     }
@@ -164,6 +166,7 @@ impl RayTracer {
 
         self.encode_intersection_handler(command_buffer);
 
+        self.encode_accumulator(command_buffer);
     }
 
     fn encode_ray_generator(&self, command_buffer: &CommandBufferRef)
@@ -182,11 +185,23 @@ impl RayTracer {
     {
         let encoder = command_buffer.new_compute_command_encoder();
 
-        encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
         encoder.set_buffer(0, Some(self.intersection_buffer.as_ref().unwrap()), 0);
         encoder.set_buffer(1, Some(&self.material_buffer), 0);
         encoder.set_buffer(2, Some(&self.triangle_buffer), 0);
+        encoder.set_buffer(3, Some(self.ray_buffer.as_ref().unwrap()), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
+        self.dispatch_thread_groups(&encoder);
+
+        encoder.end_encoding();
+    }
+
+    fn encode_accumulator(&self, command_buffer: &CommandBufferRef)
+    {
+        let encoder = command_buffer.new_compute_command_encoder();
+
+        encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
+        encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_compute_pipeline_state(&self.accumulator_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
         encoder.end_encoding();
