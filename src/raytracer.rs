@@ -3,9 +3,11 @@ use metal::*;
 use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
+use rand::prelude::*;
 
 const SIZE_OF_RAY: usize = 32;
 const SIZE_OF_INTERSECTION: usize = 16;
+const NOISE_BLOCK_SIZE: usize = 128;
 
 #[derive(Copy, Clone, Debug)]
 struct Triangle
@@ -26,6 +28,7 @@ pub struct RayTracer {
     intersection_buffer: Option<Buffer>,
     triangle_buffer: Buffer,
     material_buffer: Buffer,
+    noise_buffer: Buffer,
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
     test_pipeline_state: ComputePipelineState,
@@ -70,6 +73,7 @@ impl RayTracer {
         let material_buffer = device.new_buffer_with_data( unsafe { mem::transmute(material_data.as_ptr()) },
                                      (material_data.len() * mem::size_of::<Material>()) as u64,
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
+        let noise_buffer = Self::create_noise_buffer(device);
 
         let acceleration_structure = TriangleAccelerationStructure::new(&device);
         acceleration_structure.set_vertex_buffer(Some(&vertex_buffer));
@@ -91,10 +95,25 @@ impl RayTracer {
         let ray_generator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "generateRays");
         let intersection_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleIntersections");
 
-        let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, ray_buffer: None, intersection_buffer: None,
+        let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, noise_buffer, ray_buffer: None, intersection_buffer: None,
             output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state};
         val.resize(device, width, height);
         val
+    }
+
+    fn create_noise_buffer(device: &DeviceRef) -> Buffer
+    {
+        let mut data = Vec::new();
+        for _ in 0..NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE {
+            data.push(rand::random::<f32>());
+            data.push(rand::random::<f32>());
+            data.push(rand::random::<f32>());
+            data.push(rand::random::<f32>());
+        }
+        
+        device.new_buffer_with_data( unsafe { mem::transmute(data.as_ptr()) },
+                                     (data.len() * mem::size_of::<f32>()) as u64,
+                                     MTLResourceOptions::CPUCacheModeDefaultCache)
     }
 
     fn create_compute_pipeline_state(device: &DeviceRef, file_path: &str, function_name: &str) -> ComputePipelineState
@@ -152,6 +171,7 @@ impl RayTracer {
         let encoder = command_buffer.new_compute_command_encoder();
 
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(1, Some(&self.noise_buffer), 0);
         encoder.set_compute_pipeline_state(&self.ray_generator_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
