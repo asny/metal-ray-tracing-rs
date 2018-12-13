@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use rand::prelude::*;
 
+const NO_RAYS_PER_PIXEL: usize = 3;
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
 const NOISE_BLOCK_SIZE: usize = 128;
@@ -21,6 +22,11 @@ struct Material
     diffuse: [f32; 3]
 }
 
+struct ApplicationData
+{
+    ray_number: u32
+}
+
 pub struct RayTracer {
     acceleration_structure: TriangleAccelerationStructure,
     ray_intersector: RayIntersector,
@@ -29,6 +35,7 @@ pub struct RayTracer {
     triangle_buffer: Buffer,
     material_buffer: Buffer,
     noise_buffer: Buffer,
+    app_buffer: Buffer,
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
     test_pipeline_state: ComputePipelineState,
@@ -75,6 +82,7 @@ impl RayTracer {
                                      (material_data.len() * mem::size_of::<Material>()) as u64,
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
         let noise_buffer = Self::create_noise_buffer(device);
+        let app_buffer = device.new_buffer(mem::size_of::<ApplicationData>() as u64, MTLResourceOptions::CPUCacheModeDefaultCache);
 
         let acceleration_structure = TriangleAccelerationStructure::new(&device);
         acceleration_structure.set_vertex_buffer(Some(&vertex_buffer));
@@ -97,7 +105,7 @@ impl RayTracer {
         let intersection_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleIntersections");
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
-        let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, noise_buffer, ray_buffer: None, intersection_buffer: None,
+        let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
             output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
@@ -155,18 +163,26 @@ impl RayTracer {
 
     pub fn encode_into(&self, command_buffer: &CommandBufferRef)
     {
-        self.encode_ray_generator(command_buffer);
+        for ray_number in 0..NO_RAYS_PER_PIXEL {
 
-        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
-                                                                   MPSIntersectionType::nearest,
-                                                                   self.ray_buffer.as_ref().unwrap(), 0,
-                                                                   self.intersection_buffer.as_ref().unwrap(), 0,
-                                                                   (self.output_image_size.0 * self.output_image_size.1) as u64,
-                                                                   &self.acceleration_structure);
+            unsafe {
+                let mut ptr = self.app_buffer.contents() as *mut ApplicationData;
+                *ptr = ApplicationData {ray_number: ray_number as u32};
+            }
 
-        self.encode_intersection_handler(command_buffer);
+            self.encode_ray_generator(command_buffer);
 
-        self.encode_accumulator(command_buffer);
+            self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                       MPSIntersectionType::nearest,
+                                                                       self.ray_buffer.as_ref().unwrap(), 0,
+                                                                       self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                       (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                       &self.acceleration_structure);
+
+            self.encode_intersection_handler(command_buffer);
+
+            self.encode_accumulator(command_buffer);
+        }
     }
 
     fn encode_ray_generator(&self, command_buffer: &CommandBufferRef)
@@ -201,6 +217,7 @@ impl RayTracer {
 
         encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(1, Some(&self.app_buffer), 0);
         encoder.set_compute_pipeline_state(&self.accumulator_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
