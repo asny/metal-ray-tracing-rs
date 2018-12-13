@@ -37,7 +37,7 @@ struct Triangle
 };
 
 kernel void generateRays(device Ray* rays [[buffer(0)]],
-                         device packed_float4* noise [[buffer(1)]],
+                         device const packed_float4* noise [[buffer(1)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
 {
@@ -79,4 +79,5 @@ kernel void handleIntersections(texture2d<float, access::write> image [[texture(
 
     //image.write(float4(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y, 1.0), coordinates);
     //image.write(float4(float3(triangle.materialIndex/7.0), 1.0), coordinates);
+    //image.write(float4(float3(intersection.distance/10.0), 1.0), coordinates);
 }
