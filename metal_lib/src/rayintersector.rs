@@ -4,13 +4,21 @@ use cocoa::foundation::{NSUInteger};
 
 #[repr(u64)]
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug)]
 pub enum MPSIntersectionDataType {
     distance = 0,
     distancePrimitiveIndex = 1,
     distancePrimitiveIndexCoordinates = 2,
     distancePrimitiveIndexInstanceIndex = 3,
     distancePrimitiveIndexInstanceIndexCoordinates = 4
+}
+
+#[repr(u64)]
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, Debug)]
+pub enum MPSIntersectionType {
+    nearest = 0,
+    any = 1
 }
 
 #[repr(u64)]
@@ -86,7 +94,7 @@ impl RayIntersectorRef {
         }
     }
 
-    pub fn encode_intersection_to_command_buffer(&self, command_buffer: &CommandBufferRef, intersection_type: u64,
+    pub fn encode_intersection_to_command_buffer(&self, command_buffer: &CommandBufferRef, intersection_type: MPSIntersectionType,
                                                  ray_buffer: &BufferRef, ray_buffer_offset: NSUInteger,
                                                  intersection_buffer: &BufferRef, intersection_buffer_offset: NSUInteger,
                                                  ray_count: NSUInteger, acceleration_structure: &TriangleAccelerationStructureRef)

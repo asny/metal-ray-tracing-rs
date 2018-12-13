@@ -156,7 +156,7 @@ impl RayTracer {
         self.encode_ray_generator(command_buffer);
 
         self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
-                                                                   0, //MPSIntersectionTypeNearest
+                                                                   MPSIntersectionType::nearest,
                                                                    self.ray_buffer.as_ref().unwrap(), 0,
                                                                    self.intersection_buffer.as_ref().unwrap(), 0,
                                                                    (self.output_image_size.0 * self.output_image_size.1) as u64,
