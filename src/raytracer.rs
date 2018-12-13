@@ -40,7 +40,7 @@ impl RayTracer {
         let mut vertex_data = Vec::new();
         let mut index_data = Vec::new();
         let mut triangle_data = Vec::new();
-        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/CornellBox-Original.obj")).unwrap();
+        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/cornellbox.obj")).unwrap();
         for model in models {
             println!("{:?}", model);
             let index = (vertex_data.len() / 3) as u32;
@@ -134,7 +134,6 @@ impl RayTracer {
 
     pub fn encode_into(&self, command_buffer: &CommandBufferRef)
     {
-        self.encode_into_test(command_buffer);
         self.encode_ray_generator(command_buffer);
 
         self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
