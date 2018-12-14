@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use rand::prelude::*;
 
-const NO_RAYS_PER_PIXEL: usize = 3;
+const NO_RAYS_PER_PIXEL: usize = 1;
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
 const NOISE_BLOCK_SIZE: usize = 128;
@@ -165,11 +165,6 @@ impl RayTracer {
     {
         for ray_number in 0..NO_RAYS_PER_PIXEL {
 
-            unsafe {
-                let mut ptr = self.app_buffer.contents() as *mut ApplicationData;
-                *ptr = ApplicationData {ray_number: ray_number as u32};
-            }
-
             self.encode_ray_generator(command_buffer, ray_number);
 
             self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
@@ -181,7 +176,7 @@ impl RayTracer {
 
             self.encode_intersection_handler(command_buffer);
 
-            self.encode_accumulator(command_buffer);
+            self.encode_accumulator(command_buffer, ray_number);
         }
     }
 
@@ -211,8 +206,13 @@ impl RayTracer {
         encoder.end_encoding();
     }
 
-    fn encode_accumulator(&self, command_buffer: &CommandBufferRef)
+    fn encode_accumulator(&self, command_buffer: &CommandBufferRef, ray_number: usize)
     {
+        unsafe {
+            let mut ptr = self.app_buffer.contents() as *mut ApplicationData;
+            *ptr = ApplicationData {ray_number: ray_number as u32};
+        }
+
         let encoder = command_buffer.new_compute_command_encoder();
 
         encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
