@@ -82,11 +82,26 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const Triangle& triangle = triangles[intersection.primitiveIndex];
     device const Material& material = materials[triangle.materialIndex];
     rays[rayIndex].radiance = material.diffuse;
-    //image.write(float4(material.diffuse, 1.0), coordinates);
 
-    //image.write(float4(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y, 1.0), coordinates);
-    //image.write(float4(float3(triangle.materialIndex/7.0), 1.0), coordinates);
-    //image.write(float4(float3(intersection.distance/10.0), 1.0), coordinates);
+    // Set shadow ray
+    //rays[rayIndex].origin = origin;
+    //rays[rayIndex].direction = normalize(direction);
+    rays[rayIndex].minDistance = EPSILON;
+    rays[rayIndex].maxDistance = 2.0;
+}
+
+kernel void handleShadows(device Ray* rays [[buffer(0)]],
+                         device const Intersection* intersections [[buffer(1)]],
+                         uint2 coordinates [[thread_position_in_grid]],
+                         uint2 size [[threads_per_grid]])
+{
+    uint rayIndex = coordinates.x + coordinates.y * size.x;
+
+    float intersectionDistance = intersections[rayIndex].distance;
+
+    if (rays[rayIndex].maxDistance < 0.0f || intersectionDistance >= 0.0f) {
+        rays[rayIndex].radiance *= 0.5;
+    }
 }
 
 kernel void accumulateImage(

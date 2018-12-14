@@ -41,7 +41,8 @@ pub struct RayTracer {
     test_pipeline_state: ComputePipelineState,
     accumulator_pipeline_state: ComputePipelineState,
     ray_generator_pipeline_state: ComputePipelineState,
-    intersection_handler_pipeline_state: ComputePipelineState
+    intersection_handler_pipeline_state: ComputePipelineState,
+    shadow_handler_pipeline_state: ComputePipelineState
 }
 
 impl RayTracer {
@@ -103,10 +104,11 @@ impl RayTracer {
         let test_pipeline_state = Self::create_compute_pipeline_state(device, "src/test.metal", "imageFillTest");
         let ray_generator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "generateRays");
         let intersection_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleIntersections");
+        let shadow_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleShadows");
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
         let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
-            output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, accumulator_pipeline_state};
+            output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
     }
@@ -176,6 +178,15 @@ impl RayTracer {
 
             self.encode_intersection_handler(command_buffer);
 
+            self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                       MPSIntersectionType::any,
+                                                                       self.ray_buffer.as_ref().unwrap(), 0,
+                                                                       self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                       (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                       &self.acceleration_structure);
+
+            self.encode_shadow_handler(command_buffer);
+
             self.encode_accumulator(command_buffer, ray_number);
         }
     }
@@ -201,6 +212,18 @@ impl RayTracer {
         encoder.set_buffer(2, Some(&self.triangle_buffer), 0);
         encoder.set_buffer(3, Some(self.ray_buffer.as_ref().unwrap()), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
+        self.dispatch_thread_groups(&encoder);
+
+        encoder.end_encoding();
+    }
+
+    fn encode_shadow_handler(&self, command_buffer: &CommandBufferRef)
+    {
+        let encoder = command_buffer.new_compute_command_encoder();
+
+        encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(1, Some(self.intersection_buffer.as_ref().unwrap()), 0);
+        encoder.set_compute_pipeline_state(&self.shadow_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
         encoder.end_encoding();
