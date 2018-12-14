@@ -114,7 +114,7 @@ impl RayTracer {
     fn create_noise_buffer(device: &DeviceRef) -> Buffer
     {
         let mut data = Vec::new();
-        for _ in 0..NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE {
+        for _ in 0..NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * NO_RAYS_PER_PIXEL {
             data.push(rand::random::<f32>());
             data.push(rand::random::<f32>());
             data.push(rand::random::<f32>());
@@ -170,7 +170,7 @@ impl RayTracer {
                 *ptr = ApplicationData {ray_number: ray_number as u32};
             }
 
-            self.encode_ray_generator(command_buffer);
+            self.encode_ray_generator(command_buffer, ray_number);
 
             self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
                                                                        MPSIntersectionType::nearest,
@@ -185,12 +185,12 @@ impl RayTracer {
         }
     }
 
-    fn encode_ray_generator(&self, command_buffer: &CommandBufferRef)
+    fn encode_ray_generator(&self, command_buffer: &CommandBufferRef, ray_number: usize)
     {
         let encoder = command_buffer.new_compute_command_encoder();
 
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
-        encoder.set_buffer(1, Some(&self.noise_buffer), 0);
+        encoder.set_buffer(1, Some(&self.noise_buffer), (mem::size_of::<f32>() * ray_number * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE) as u64);
         encoder.set_compute_pipeline_state(&self.ray_generator_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
