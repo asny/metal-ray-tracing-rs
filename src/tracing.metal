@@ -91,11 +91,15 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const packed_float3& c = vertices[triangleIndices.z];
     float3 origin = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
 
+    float3 light_position = float3(0.0, 1.4, 0.0);
+    float3 dir = light_position - origin;
+    float dist = length(dir);
+
     // Set shadow ray
     rays[rayIndex].origin = origin;
-    rays[rayIndex].direction = normalize(float3(1.0, 1.0, -1.0));
+    rays[rayIndex].direction = dir / dist;
     rays[rayIndex].minDistance = EPSILON;
-    rays[rayIndex].maxDistance = 0.2;
+    rays[rayIndex].maxDistance = dist - EPSILON;
 }
 
 kernel void handleShadows(device Ray* rays [[buffer(0)]],
