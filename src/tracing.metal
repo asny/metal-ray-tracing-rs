@@ -11,6 +11,7 @@ struct Ray {
     float minDistance;
     packed_float3 direction;
     float maxDistance;
+    packed_float3 radiance;
 };
 
 struct Intersection {
@@ -34,6 +35,11 @@ struct Material
 struct Triangle
 {
     uint materialIndex;
+};
+
+struct ApplicationData
+{
+    uint frameIndex;
 };
 
 kernel void generateRays(device Ray* rays [[buffer(0)]],
@@ -61,10 +67,10 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
     rays[rayIndex].maxDistance = INFINITY;
 }
 
-kernel void handleIntersections(texture2d<float, access::write> image [[texture(0)]],
-                                device const Intersection* intersections [[buffer(0)]],
+kernel void handleIntersections(device const Intersection* intersections [[buffer(0)]],
                                 device const Material* materials [[buffer(1)]],
                                 device const Triangle* triangles [[buffer(2)]],
+                                device Ray* rays [[buffer(3)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
@@ -75,9 +81,28 @@ kernel void handleIntersections(texture2d<float, access::write> image [[texture(
 
     device const Triangle& triangle = triangles[intersection.primitiveIndex];
     device const Material& material = materials[triangle.materialIndex];
-    image.write(float4(material.diffuse, 1.0), coordinates);
+    rays[rayIndex].radiance = material.diffuse;
+    //image.write(float4(material.diffuse, 1.0), coordinates);
 
     //image.write(float4(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y, 1.0), coordinates);
     //image.write(float4(float3(triangle.materialIndex/7.0), 1.0), coordinates);
     //image.write(float4(float3(intersection.distance/10.0), 1.0), coordinates);
+}
+
+kernel void accumulateImage(
+    texture2d<float, access::read_write> image [[texture(0)]],
+    device Ray* rays [[buffer(0)]],
+    constant ApplicationData& appData [[buffer(1)]],
+    uint2 coordinates [[thread_position_in_grid]],
+    uint2 size [[threads_per_grid]])
+{
+    uint rayIndex = coordinates.x + coordinates.y * size.x;
+    float4 outputColor = float4(rays[rayIndex].radiance, 1.0);
+    if (appData.frameIndex > 0)
+    {
+        float4 storedColor = image.read(coordinates);
+        float t = float(appData.frameIndex) / float(appData.frameIndex + 1);
+        outputColor = mix(outputColor, storedColor, t);
+    }
+    image.write(outputColor, coordinates);
 }
