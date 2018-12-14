@@ -201,7 +201,7 @@ impl RayTracer {
                                                                        (self.output_image_size.0 * self.output_image_size.1) as u64,
                                                                        &self.acceleration_structure);
 
-            self.encode_intersection_handler(command_buffer);
+            self.encode_intersection_handler(command_buffer, ray_number);
 
             self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
                                                                        MPSIntersectionType::any,
@@ -228,7 +228,7 @@ impl RayTracer {
         encoder.end_encoding();
     }
 
-    fn encode_intersection_handler(&self, command_buffer: &CommandBufferRef)
+    fn encode_intersection_handler(&self, command_buffer: &CommandBufferRef, ray_number: usize)
     {
         let encoder = command_buffer.new_compute_command_encoder();
 
@@ -240,6 +240,7 @@ impl RayTracer {
         encoder.set_buffer(5, Some(&self.index_buffer), 0);
         encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
         encoder.set_buffer(7, Some(&self.app_buffer), 0);
+        encoder.set_buffer(7, Some(&self.noise_buffer), (mem::size_of::<f32>() * ((ray_number + 1) % NO_RAYS_PER_PIXEL) * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE) as u64);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 

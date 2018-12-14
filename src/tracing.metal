@@ -96,6 +96,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
                                 device const packed_uint3* indices [[buffer(5)]],
                                 device const EmitterTriangle* emitterTriangles [[buffer(6)]],
                                 device const ApplicationData& appData [[buffer(7)]],
+                                device const packed_float4* noise [[buffer(8)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
@@ -116,7 +117,9 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
 
     // Find light point
-    float3 noiseSample = float3(0.5, 0.5, 0.5);
+    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) +
+        NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
+    device const packed_float4& noiseSample = noise[noiseSampleIndex];
     device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
     float3 lightTriangleBarycentric = barycentric(noiseSample.yz);
     device const packed_uint3& lightTriangleIndices = indices[emitterTriangle.primitiveIndex];
