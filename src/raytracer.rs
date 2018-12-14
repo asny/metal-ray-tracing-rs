@@ -153,7 +153,7 @@ impl RayTracer {
         texture_descriptor.set_width(width as u64);
         texture_descriptor.set_height(height as u64);
         texture_descriptor.set_storage_mode(MTLStorageMode::Private);
-        texture_descriptor.set_usage(MTLTextureUsage::ShaderWrite);
+        texture_descriptor.set_usage(MTLTextureUsage::ShaderRead | MTLTextureUsage::ShaderWrite);
         self.output_image = Some(device.new_texture(&texture_descriptor));
 
         self.ray_buffer = Some(device.new_buffer((ray_count * SIZE_OF_RAY) as u64, MTLResourceOptions::StorageModePrivate));
