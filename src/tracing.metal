@@ -37,10 +37,31 @@ struct Triangle
     uint materialIndex;
 };
 
+struct EmitterTriangle
+{
+    uint primitiveIndex;
+};
+
 struct ApplicationData
 {
     uint frameIndex;
+    uint emitterTrianglesCount;
 };
+
+device const EmitterTriangle& sampleEmitterTriangle(
+    device const EmitterTriangle* triangles, uint triangleCount, float xi)
+{
+    uint index = 0;
+    for (; (index < triangleCount) && (float(index+1)/float(triangleCount) <= xi); ++index);
+    return triangles[index];
+}
+
+float3 barycentric(float2 smp)
+{
+    float r1 = sqrt(smp.x);
+    float r2 = smp.y;
+    return float3(1.0f - r1, r1 * (1.0f - r2), r1 * r2);
+}
 
 kernel void generateRays(device Ray* rays [[buffer(0)]],
                          device const packed_float4* noise [[buffer(1)]],
@@ -73,6 +94,8 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
                                 device Ray* rays [[buffer(3)]],
                                 device const packed_float3* vertices [[buffer(4)]],
                                 device const packed_uint3* indices [[buffer(5)]],
+                                device const EmitterTriangle* emitterTriangles [[buffer(6)]],
+                                device const ApplicationData& appData [[buffer(7)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
@@ -85,18 +108,27 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const Material& material = materials[triangle.materialIndex];
     rays[rayIndex].radiance = material.diffuse;
 
+    // Find intersection point
     device const packed_uint3& triangleIndices = indices[intersection.primitiveIndex];
     device const packed_float3& a = vertices[triangleIndices.x];
     device const packed_float3& b = vertices[triangleIndices.y];
     device const packed_float3& c = vertices[triangleIndices.z];
-    float3 origin = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
+    float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
 
-    float3 light_position = float3(0.0, 1.4, 0.0);
-    float3 dir = light_position - origin;
-    float dist = length(dir);
+    // Find light point
+    float3 noiseSample = float3(0.5, 0.5, 0.5);
+    device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
+    float3 lightTriangleBarycentric = barycentric(noiseSample.yz);
+    device const packed_uint3& lightTriangleIndices = indices[emitterTriangle.primitiveIndex];
+    device const packed_float3& d = vertices[lightTriangleIndices.x];
+    device const packed_float3& e = vertices[lightTriangleIndices.y];
+    device const packed_float3& f = vertices[lightTriangleIndices.z];
+    float3 light_position = lightTriangleBarycentric.x * d + lightTriangleBarycentric.y * e + lightTriangleBarycentric.z * f;
 
     // Set shadow ray
-    rays[rayIndex].origin = origin;
+    float3 dir = light_position - intersection_point;
+    float dist = length(dir);
+    rays[rayIndex].origin = intersection_point;
     rays[rayIndex].direction = dir / dist;
     rays[rayIndex].minDistance = EPSILON;
     rays[rayIndex].maxDistance = dist - EPSILON;
@@ -119,7 +151,7 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
 kernel void accumulateImage(
     texture2d<float, access::read_write> image [[texture(0)]],
     device Ray* rays [[buffer(0)]],
-    constant ApplicationData& appData [[buffer(1)]],
+    device const ApplicationData& appData [[buffer(1)]],
     uint2 coordinates [[thread_position_in_grid]],
     uint2 size [[threads_per_grid]])
 {

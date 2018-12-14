@@ -22,9 +22,15 @@ struct Material
     diffuse: [f32; 3]
 }
 
+struct EmitterTriangle
+{
+    primitive_index: u32
+}
+
 struct ApplicationData
 {
-    ray_number: u32
+    ray_number: u32,
+    emitter_triangles_count: u32
 }
 
 pub struct RayTracer {
@@ -39,6 +45,7 @@ pub struct RayTracer {
     app_buffer: Buffer,
     vertex_buffer: Buffer,
     index_buffer: Buffer,
+    emitter_triangle_buffer: Buffer,
 
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
@@ -54,15 +61,24 @@ impl RayTracer {
 
     pub fn new(device: &DeviceRef, width: usize, height: usize) -> RayTracer
     {
+        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/cornellbox.obj")).unwrap();
+
         let mut vertex_data = Vec::new();
         let mut index_data = Vec::new();
         let mut triangle_data = Vec::new();
-        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/cornellbox.obj")).unwrap();
+        let mut emitter_triangle_data = Vec::new();
         for model in models {
             println!("{:?}", model);
             let index = (vertex_data.len() / 3) as u32;
             vertex_data.append(&mut model.mesh.positions.clone());
             triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
+
+            if let Some(emissive) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
+                for i in index_data.len()/3..(index_data.len() + model.mesh.indices.len())/3 {
+                    emitter_triangle_data.push( EmitterTriangle {primitive_index: i as u32} );
+                }
+            }
+
             for i in model.mesh.indices {
                 index_data.push(index + i);
             }
@@ -86,6 +102,9 @@ impl RayTracer {
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
         let material_buffer = device.new_buffer_with_data( unsafe { mem::transmute(material_data.as_ptr()) },
                                      (material_data.len() * mem::size_of::<Material>()) as u64,
+                                     MTLResourceOptions::CPUCacheModeDefaultCache);
+        let emitter_triangle_buffer = device.new_buffer_with_data( unsafe { mem::transmute(emitter_triangle_data.as_ptr()) },
+                                     (emitter_triangle_data.len() * mem::size_of::<EmitterTriangle>()) as u64,
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
         let noise_buffer = Self::create_noise_buffer(device);
         let app_buffer = device.new_buffer(mem::size_of::<ApplicationData>() as u64, MTLResourceOptions::CPUCacheModeDefaultCache);
@@ -112,7 +131,7 @@ impl RayTracer {
         let shadow_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleShadows");
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
-        let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
+        let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
             output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
@@ -218,6 +237,8 @@ impl RayTracer {
         encoder.set_buffer(3, Some(self.ray_buffer.as_ref().unwrap()), 0);
         encoder.set_buffer(4, Some(&self.vertex_buffer), 0);
         encoder.set_buffer(5, Some(&self.index_buffer), 0);
+        encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
+        encoder.set_buffer(7, Some(&self.app_buffer), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
@@ -240,7 +261,7 @@ impl RayTracer {
     {
         unsafe {
             let mut ptr = self.app_buffer.contents() as *mut ApplicationData;
-            *ptr = ApplicationData {ray_number: ray_number as u32};
+            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: 2};
         }
 
         let encoder = command_buffer.new_compute_command_encoder();
