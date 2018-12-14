@@ -49,6 +49,7 @@ pub struct RayTracer {
 
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
+    no_emitter_triangles: usize,
 
     test_pipeline_state: ComputePipelineState,
     accumulator_pipeline_state: ComputePipelineState,
@@ -132,7 +133,7 @@ impl RayTracer {
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
         let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
-            output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
+            no_emitter_triangles: emitter_triangle_data.len(), output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
     }
@@ -261,7 +262,7 @@ impl RayTracer {
     {
         unsafe {
             let mut ptr = self.app_buffer.contents() as *mut ApplicationData;
-            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: 2};
+            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32};
         }
 
         let encoder = command_buffer.new_compute_command_encoder();
