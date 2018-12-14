@@ -30,14 +30,19 @@ struct ApplicationData
 pub struct RayTracer {
     acceleration_structure: TriangleAccelerationStructure,
     ray_intersector: RayIntersector,
+
     ray_buffer: Option<Buffer>,
     intersection_buffer: Option<Buffer>,
     triangle_buffer: Buffer,
     material_buffer: Buffer,
     noise_buffer: Buffer,
     app_buffer: Buffer,
+    vertex_buffer: Buffer,
+    index_buffer: Buffer,
+
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
+
     test_pipeline_state: ComputePipelineState,
     accumulator_pipeline_state: ComputePipelineState,
     ray_generator_pipeline_state: ComputePipelineState,
@@ -107,7 +112,7 @@ impl RayTracer {
         let shadow_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleShadows");
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
-        let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
+        let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
             output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
@@ -211,6 +216,8 @@ impl RayTracer {
         encoder.set_buffer(1, Some(&self.material_buffer), 0);
         encoder.set_buffer(2, Some(&self.triangle_buffer), 0);
         encoder.set_buffer(3, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(4, Some(&self.vertex_buffer), 0);
+        encoder.set_buffer(5, Some(&self.index_buffer), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 

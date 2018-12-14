@@ -71,6 +71,8 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
                                 device const Material* materials [[buffer(1)]],
                                 device const Triangle* triangles [[buffer(2)]],
                                 device Ray* rays [[buffer(3)]],
+                                device const packed_float3* vertices [[buffer(4)]],
+                                device const packed_uint3* indices [[buffer(5)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
@@ -83,11 +85,17 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const Material& material = materials[triangle.materialIndex];
     rays[rayIndex].radiance = material.diffuse;
 
+    device const packed_uint3& triangleIndices = indices[intersection.primitiveIndex];
+    device const packed_float3& a = vertices[triangleIndices.x];
+    device const packed_float3& b = vertices[triangleIndices.y];
+    device const packed_float3& c = vertices[triangleIndices.z];
+    float3 origin = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
+
     // Set shadow ray
-    //rays[rayIndex].origin = origin;
-    //rays[rayIndex].direction = normalize(direction);
+    rays[rayIndex].origin = origin;
+    rays[rayIndex].direction = normalize(float3(1.0, 1.0, -1.0));
     rays[rayIndex].minDistance = EPSILON;
-    rays[rayIndex].maxDistance = 2.0;
+    rays[rayIndex].maxDistance = 0.2;
 }
 
 kernel void handleShadows(device Ray* rays [[buffer(0)]],
