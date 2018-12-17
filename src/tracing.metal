@@ -113,7 +113,10 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     uint rayIndex = coordinates.x + coordinates.y * size.x;
     device const Intersection& intersection = intersections[rayIndex];
     if (intersection.distance < EPSILON)
+    {
+        rays[rayIndex].maxDistance = -1.0;
         return;
+    }
 
     device const Triangle& triangle = triangles[intersection.primitiveIndex];
     device const Material& material = materials[triangle.materialIndex];
