@@ -41,6 +41,7 @@ struct Triangle
 struct EmitterTriangle
 {
     uint primitiveIndex;
+    packed_float3 emissive;
 };
 
 struct ApplicationData
@@ -145,8 +146,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     float cosTheta = -dot(light_dir, light_normal);
     float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
     float lightSamplePdf = light_pdf * pointSamplePdf;
-    //rays[rayIndex].color = emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);
-    rays[rayIndex].color = material.diffuse * (materialBsdf / lightSamplePdf);
+    rays[rayIndex].color = emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);
 
     // Set shadow ray
     rays[rayIndex].origin = intersection_point;

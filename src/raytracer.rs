@@ -25,7 +25,8 @@ struct Material
 
 struct EmitterTriangle
 {
-    primitive_index: u32
+    primitive_index: u32,
+    emissive: [f32; 3]
 }
 
 struct ApplicationData
@@ -77,9 +78,10 @@ impl RayTracer {
             vertex_data.append(&mut model.mesh.positions.clone());
             triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
 
-            if let Some(_emissive) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
+            if let Some(emissive_string) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
                 for i in index_data.len()/3..(index_data.len() + model.mesh.indices.len())/3 {
-                    emitter_triangle_data.push( EmitterTriangle {primitive_index: i as u32} );
+                    let mut emissive = parse_float3(emissive_string);
+                    emitter_triangle_data.push( EmitterTriangle {primitive_index: i as u32, emissive} );
                 }
             }
 
@@ -318,4 +320,13 @@ impl RayTracer {
         self.output_image.as_ref().unwrap()
     }
 
+}
+
+fn parse_float3(val_str: &str) -> [f32; 3] {
+    let mut words = val_str[..].split_whitespace();
+    let mut vals = [0.0f32; 3];
+    for (i, p) in words.enumerate() {
+        vals[i] = std::str::FromStr::from_str(p).unwrap();
+    }
+    vals
 }
