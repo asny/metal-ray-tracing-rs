@@ -130,10 +130,10 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const packed_float3& f = vertices[lightTriangleIndices.z];
     float3 light_position = lightTriangleBarycentric.x * d + lightTriangleBarycentric.y * e + lightTriangleBarycentric.z * f;
 
-    // Find light normal
-    float3 light_normal = normalize(cross(e-d, f-d));
-
-    // Light direction and length
+    // Light attributes
+    float3 light_normal = cross(e-d, f-d);
+    float light_area = length(light_normal) * 0.5;
+    light_normal /= 2.0 * light_area;
     float3 light_dir = light_position - intersection_point;
     float light_dist = length(light_dir);
     light_dir /= light_dist;
