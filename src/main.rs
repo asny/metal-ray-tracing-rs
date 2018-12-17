@@ -38,11 +38,9 @@ fn encode_blit_into(command_buffer: &CommandBufferRef, blit_pipeline_state: &Ren
 {
     let descriptor = RenderPassDescriptor::new();
     let color_attachment = descriptor.color_attachments().object_at(0).unwrap();
-
-    color_attachment.set_texture(Some(output_texture));
-    color_attachment.set_load_action(MTLLoadAction::Clear);
-    color_attachment.set_clear_color(MTLClearColor::new(0.5, 0.2, 0.2, 1.0));
+    color_attachment.set_load_action(MTLLoadAction::DontCare);
     color_attachment.set_store_action(MTLStoreAction::Store);
+    color_attachment.set_texture(Some(output_texture));
 
     let encoder = command_buffer.new_render_command_encoder(&descriptor);
     encoder.set_render_pipeline_state(blit_pipeline_state);
@@ -85,7 +83,7 @@ fn main() {
     let mut running = true;
 
     let mut ray_number = 0;
-    const MAX_NO_RAYS: usize = 1000;
+    const MAX_NO_RAYS: usize = 200;
 
     while running {
         events_loop.poll_events(|event| {
@@ -116,9 +114,9 @@ fn main() {
             let command_buffer = command_queue.new_command_buffer();
             if ray_number < MAX_NO_RAYS {
                 raytracer.encode_into(ray_number, command_buffer);
-                encode_blit_into(&command_buffer, &blit_pipeline_state, raytracer.output_texture(), &drawable.texture());
                 ray_number += 1;
             }
+            encode_blit_into(&command_buffer, &blit_pipeline_state, raytracer.output_texture(), &drawable.texture());
 
             command_buffer.present_drawable(&drawable);
             command_buffer.commit();
