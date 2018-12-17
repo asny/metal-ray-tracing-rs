@@ -7,8 +7,8 @@ use cgmath::*;
 use mersenne_twister::MT19937;
 use rand::Rng;
 
-const NOISE_BLOCK_SIZE: usize = 256;
-const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * 3;
+const NOISE_BLOCK_SIZE: usize = 16;
+const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 3;
 
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
@@ -262,7 +262,7 @@ impl RayTracer {
         encoder.set_buffer(5, Some(&self.index_buffer), 0);
         encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
         encoder.set_buffer(7, Some(&self.app_buffer), 0);
-        encoder.set_buffer(8, Some(&self.noise_buffer), (mem::size_of::<f32>() * NOISE_BUFFER_SIZE/2) as u64);
+        encoder.set_buffer(8, Some(&self.noise_buffer), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
