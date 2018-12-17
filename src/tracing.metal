@@ -11,7 +11,7 @@ struct Ray {
     float minDistance;
     packed_float3 direction;
     float maxDistance;
-    packed_float3 radiance;
+    packed_float3 color;
 };
 
 struct Intersection {
@@ -107,7 +107,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
 
     device const Triangle& triangle = triangles[intersection.primitiveIndex];
     device const Material& material = materials[triangle.materialIndex];
-    rays[rayIndex].radiance = material.diffuse;
+    rays[rayIndex].color = material.diffuse;
 
     // Find intersection point
     device const packed_uint3& triangleIndices = indices[intersection.primitiveIndex];
@@ -146,7 +146,7 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     float intersectionDistance = intersections[rayIndex].distance;
 
     if (rays[rayIndex].maxDistance < 0.0f || intersectionDistance >= 0.0f) {
-        rays[rayIndex].radiance *= 0.5;
+        rays[rayIndex].color = float3(0.0);
     }
 }
 
@@ -158,7 +158,7 @@ kernel void accumulateImage(
     uint2 size [[threads_per_grid]])
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
-    float4 outputColor = float4(rays[rayIndex].radiance, 1.0);
+    float4 outputColor = float4(rays[rayIndex].color, 1.0);
     if (appData.frameIndex > 0)
     {
         float4 storedColor = image.read(coordinates);
