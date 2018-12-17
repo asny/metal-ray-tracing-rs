@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use rand::prelude::*;
 
-const NO_RAYS_PER_PIXEL: usize = 1;
+const NO_RAYS_PER_PIXEL: usize = 10;
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
 const NOISE_BLOCK_SIZE: usize = 128;
@@ -188,32 +188,30 @@ impl RayTracer {
 
     }
 
-    pub fn encode_into(&self, command_buffer: &CommandBufferRef)
+    pub fn encode_into(&self, ray_number: usize, command_buffer: &CommandBufferRef)
     {
-        for ray_number in 0..NO_RAYS_PER_PIXEL {
 
-            self.encode_ray_generator(command_buffer, ray_number);
+        self.encode_ray_generator(command_buffer, ray_number);
 
-            self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
-                                                                       MPSIntersectionType::nearest,
-                                                                       self.ray_buffer.as_ref().unwrap(), 0,
-                                                                       self.intersection_buffer.as_ref().unwrap(), 0,
-                                                                       (self.output_image_size.0 * self.output_image_size.1) as u64,
-                                                                       &self.acceleration_structure);
+        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                   MPSIntersectionType::nearest,
+                                                                   self.ray_buffer.as_ref().unwrap(), 0,
+                                                                   self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                   (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                   &self.acceleration_structure);
 
-            self.encode_intersection_handler(command_buffer, ray_number);
+        self.encode_intersection_handler(command_buffer, ray_number);
 
-            self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
-                                                                       MPSIntersectionType::any,
-                                                                       self.ray_buffer.as_ref().unwrap(), 0,
-                                                                       self.intersection_buffer.as_ref().unwrap(), 0,
-                                                                       (self.output_image_size.0 * self.output_image_size.1) as u64,
-                                                                       &self.acceleration_structure);
+        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                   MPSIntersectionType::any,
+                                                                   self.ray_buffer.as_ref().unwrap(), 0,
+                                                                   self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                   (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                   &self.acceleration_structure);
 
-            self.encode_shadow_handler(command_buffer);
+        self.encode_shadow_handler(command_buffer);
 
-            self.encode_accumulator(command_buffer, ray_number);
-        }
+        self.encode_accumulator(command_buffer, ray_number);
     }
 
     fn encode_ray_generator(&self, command_buffer: &CommandBufferRef, ray_number: usize)
