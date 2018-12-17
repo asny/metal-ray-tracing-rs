@@ -3,6 +3,7 @@
 
 using namespace metal;
 
+constant float PI = 3.1415926535897932384626433832795;
 constant float EPSILON = 0.000001;
 constant uint NOISE_BLOCK_SIZE = 128;
 
@@ -107,7 +108,6 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
 
     device const Triangle& triangle = triangles[intersection.primitiveIndex];
     device const Material& material = materials[triangle.materialIndex];
-    rays[rayIndex].color = material.diffuse;
 
     // Find intersection point
     device const packed_uint3& triangleIndices = indices[intersection.primitiveIndex];
@@ -115,6 +115,9 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const packed_float3& b = vertices[triangleIndices.y];
     device const packed_float3& c = vertices[triangleIndices.z];
     float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
+
+    // Find normal
+    float3 normal = normalize(cross(b-a, c-a));
 
     // Find light point
     uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
@@ -127,13 +130,29 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const packed_float3& f = vertices[lightTriangleIndices.z];
     float3 light_position = lightTriangleBarycentric.x * d + lightTriangleBarycentric.y * e + lightTriangleBarycentric.z * f;
 
+    // Find light normal
+    float3 light_normal = normalize(cross(e-d, f-d));
+
+    // Light direction and length
+    float3 light_dir = light_position - intersection_point;
+    float light_dist = length(light_dir);
+    light_dir /= light_dist;
+
+    // Find color
+    float materialBsdf = (1.0 / PI) * dot(light_dir, normal);
+    float cosTheta = -dot(light_dir, light_normal);
+    /*float pointSamplePdf = (light_dist * light_dist) / (emitterTriangle.area * cosTheta);
+    float lightSamplePdf = emitterTriangle.pdf * pointSamplePdf;
+    rays[rayIndex].color = emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);*/
+    float pointSamplePdf = (light_dist * light_dist) / (cosTheta);
+    float lightSamplePdf = pointSamplePdf;
+    rays[rayIndex].color = material.diffuse * (materialBsdf / lightSamplePdf);
+
     // Set shadow ray
-    float3 dir = light_position - intersection_point;
-    float dist = length(dir);
     rays[rayIndex].origin = intersection_point;
-    rays[rayIndex].direction = dir / dist;
+    rays[rayIndex].direction = light_dir;
     rays[rayIndex].minDistance = EPSILON;
-    rays[rayIndex].maxDistance = dist - EPSILON;
+    rays[rayIndex].maxDistance = light_dist - EPSILON;
 }
 
 kernel void handleShadows(device Ray* rays [[buffer(0)]],
