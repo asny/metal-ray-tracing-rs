@@ -3,12 +3,12 @@ use metal::*;
 use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
-use rand::prelude::*;
 
-const NO_RAYS_PER_PIXEL: usize = 3;
+const NOISE_BLOCK_SIZE: usize = 128;
+const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * 4;
+
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
-const NOISE_BLOCK_SIZE: usize = 128;
 
 #[derive(Copy, Clone, Debug)]
 struct Triangle
@@ -22,41 +22,64 @@ struct Material
     diffuse: [f32; 3]
 }
 
+struct EmitterTriangle
+{
+    primitive_index: u32
+}
+
 struct ApplicationData
 {
-    ray_number: u32
+    ray_number: u32,
+    emitter_triangles_count: u32
 }
 
 pub struct RayTracer {
     acceleration_structure: TriangleAccelerationStructure,
     ray_intersector: RayIntersector,
+
     ray_buffer: Option<Buffer>,
     intersection_buffer: Option<Buffer>,
     triangle_buffer: Buffer,
     material_buffer: Buffer,
     noise_buffer: Buffer,
     app_buffer: Buffer,
+    vertex_buffer: Buffer,
+    index_buffer: Buffer,
+    emitter_triangle_buffer: Buffer,
+
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
+    no_emitter_triangles: usize,
+
     test_pipeline_state: ComputePipelineState,
     accumulator_pipeline_state: ComputePipelineState,
     ray_generator_pipeline_state: ComputePipelineState,
-    intersection_handler_pipeline_state: ComputePipelineState
+    intersection_handler_pipeline_state: ComputePipelineState,
+    shadow_handler_pipeline_state: ComputePipelineState
 }
 
 impl RayTracer {
 
     pub fn new(device: &DeviceRef, width: usize, height: usize) -> RayTracer
     {
+        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/cornellbox.obj")).unwrap();
+
         let mut vertex_data = Vec::new();
         let mut index_data = Vec::new();
         let mut triangle_data = Vec::new();
-        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/cornellbox.obj")).unwrap();
+        let mut emitter_triangle_data = Vec::new();
         for model in models {
             println!("{:?}", model);
             let index = (vertex_data.len() / 3) as u32;
             vertex_data.append(&mut model.mesh.positions.clone());
             triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
+
+            if let Some(_emissive) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
+                for i in index_data.len()/3..(index_data.len() + model.mesh.indices.len())/3 {
+                    emitter_triangle_data.push( EmitterTriangle {primitive_index: i as u32} );
+                }
+            }
+
             for i in model.mesh.indices {
                 index_data.push(index + i);
             }
@@ -81,7 +104,11 @@ impl RayTracer {
         let material_buffer = device.new_buffer_with_data( unsafe { mem::transmute(material_data.as_ptr()) },
                                      (material_data.len() * mem::size_of::<Material>()) as u64,
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
-        let noise_buffer = Self::create_noise_buffer(device);
+        let emitter_triangle_buffer = device.new_buffer_with_data( unsafe { mem::transmute(emitter_triangle_data.as_ptr()) },
+                                     (emitter_triangle_data.len() * mem::size_of::<EmitterTriangle>()) as u64,
+                                     MTLResourceOptions::CPUCacheModeDefaultCache);
+        let noise_buffer = device.new_buffer((NOISE_BUFFER_SIZE * mem::size_of::<f32>()) as u64,
+                                             MTLResourceOptions::CPUCacheModeDefaultCache);
         let app_buffer = device.new_buffer(mem::size_of::<ApplicationData>() as u64, MTLResourceOptions::CPUCacheModeDefaultCache);
 
         let acceleration_structure = TriangleAccelerationStructure::new(&device);
@@ -103,27 +130,26 @@ impl RayTracer {
         let test_pipeline_state = Self::create_compute_pipeline_state(device, "src/test.metal", "imageFillTest");
         let ray_generator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "generateRays");
         let intersection_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleIntersections");
+        let shadow_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleShadows");
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
-        let mut val = RayTracer {acceleration_structure, ray_intersector, triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
-            output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, accumulator_pipeline_state};
+        let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
+            no_emitter_triangles: emitter_triangle_data.len(), output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
     }
 
-    fn create_noise_buffer(device: &DeviceRef) -> Buffer
+    fn update_noise_buffer(&self)
     {
-        let mut data = Vec::new();
-        for _ in 0..NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * NO_RAYS_PER_PIXEL {
-            data.push(rand::random::<f32>());
-            data.push(rand::random::<f32>());
-            data.push(rand::random::<f32>());
-            data.push(rand::random::<f32>());
+        let mut data = [0.0f32; NOISE_BUFFER_SIZE];
+        for i in 0..NOISE_BUFFER_SIZE {
+            data[i] = rand::random::<f32>();
         }
-        
-        device.new_buffer_with_data( unsafe { mem::transmute(data.as_ptr()) },
-                                     (data.len() * mem::size_of::<f32>()) as u64,
-                                     MTLResourceOptions::CPUCacheModeDefaultCache)
+
+        unsafe {
+            let ptr = self.noise_buffer.contents() as *mut [f32; NOISE_BUFFER_SIZE];
+            *ptr = mem::transmute(data);
+        }
     }
 
     fn create_compute_pipeline_state(device: &DeviceRef, file_path: &str, function_name: &str) -> ComputePipelineState
@@ -161,28 +187,32 @@ impl RayTracer {
 
     }
 
-    pub fn encode_into(&self, command_buffer: &CommandBufferRef)
+    pub fn encode_into(&self, ray_number: usize, command_buffer: &CommandBufferRef)
     {
-        for ray_number in 0..NO_RAYS_PER_PIXEL {
+        println!("Ray: {}", ray_number);
+        self.update_noise_buffer();
 
-            unsafe {
-                let mut ptr = self.app_buffer.contents() as *mut ApplicationData;
-                *ptr = ApplicationData {ray_number: ray_number as u32};
-            }
+        self.encode_ray_generator(command_buffer, ray_number);
 
-            self.encode_ray_generator(command_buffer, ray_number);
+        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                   MPSIntersectionType::nearest,
+                                                                   self.ray_buffer.as_ref().unwrap(), 0,
+                                                                   self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                   (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                   &self.acceleration_structure);
 
-            self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
-                                                                       MPSIntersectionType::nearest,
-                                                                       self.ray_buffer.as_ref().unwrap(), 0,
-                                                                       self.intersection_buffer.as_ref().unwrap(), 0,
-                                                                       (self.output_image_size.0 * self.output_image_size.1) as u64,
-                                                                       &self.acceleration_structure);
+        self.encode_intersection_handler(command_buffer, ray_number);
 
-            self.encode_intersection_handler(command_buffer);
+        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                   MPSIntersectionType::any,
+                                                                   self.ray_buffer.as_ref().unwrap(), 0,
+                                                                   self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                   (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                   &self.acceleration_structure);
 
-            self.encode_accumulator(command_buffer);
-        }
+        self.encode_shadow_handler(command_buffer);
+
+        self.encode_accumulator(command_buffer, ray_number);
     }
 
     fn encode_ray_generator(&self, command_buffer: &CommandBufferRef, ray_number: usize)
@@ -190,14 +220,14 @@ impl RayTracer {
         let encoder = command_buffer.new_compute_command_encoder();
 
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
-        encoder.set_buffer(1, Some(&self.noise_buffer), (mem::size_of::<f32>() * ray_number * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE) as u64);
+        encoder.set_buffer(1, Some(&self.noise_buffer), 0);
         encoder.set_compute_pipeline_state(&self.ray_generator_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
         encoder.end_encoding();
     }
 
-    fn encode_intersection_handler(&self, command_buffer: &CommandBufferRef)
+    fn encode_intersection_handler(&self, command_buffer: &CommandBufferRef, ray_number: usize)
     {
         let encoder = command_buffer.new_compute_command_encoder();
 
@@ -205,14 +235,36 @@ impl RayTracer {
         encoder.set_buffer(1, Some(&self.material_buffer), 0);
         encoder.set_buffer(2, Some(&self.triangle_buffer), 0);
         encoder.set_buffer(3, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(4, Some(&self.vertex_buffer), 0);
+        encoder.set_buffer(5, Some(&self.index_buffer), 0);
+        encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
+        encoder.set_buffer(7, Some(&self.app_buffer), 0);
+        encoder.set_buffer(8, Some(&self.noise_buffer), (mem::size_of::<f32>() * NOISE_BUFFER_SIZE/2) as u64);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
         encoder.end_encoding();
     }
 
-    fn encode_accumulator(&self, command_buffer: &CommandBufferRef)
+    fn encode_shadow_handler(&self, command_buffer: &CommandBufferRef)
     {
+        let encoder = command_buffer.new_compute_command_encoder();
+
+        encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(1, Some(self.intersection_buffer.as_ref().unwrap()), 0);
+        encoder.set_compute_pipeline_state(&self.shadow_handler_pipeline_state);
+        self.dispatch_thread_groups(&encoder);
+
+        encoder.end_encoding();
+    }
+
+    fn encode_accumulator(&self, command_buffer: &CommandBufferRef, ray_number: usize)
+    {
+        unsafe {
+            let ptr = self.app_buffer.contents() as *mut ApplicationData;
+            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32};
+        }
+
         let encoder = command_buffer.new_compute_command_encoder();
 
         encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
