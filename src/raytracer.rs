@@ -141,7 +141,7 @@ impl RayTracer {
     fn create_noise_buffer(device: &DeviceRef) -> Buffer
     {
         let mut data = Vec::new();
-        for _ in 0..NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * NO_RAYS_PER_PIXEL {
+        for _ in 0..NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * NO_RAYS_PER_PIXEL {
             data.push(rand::random::<f32>());
             data.push(rand::random::<f32>());
             data.push(rand::random::<f32>());
@@ -240,7 +240,7 @@ impl RayTracer {
         encoder.set_buffer(5, Some(&self.index_buffer), 0);
         encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
         encoder.set_buffer(7, Some(&self.app_buffer), 0);
-        encoder.set_buffer(8, Some(&self.noise_buffer), (mem::size_of::<f32>() * ((ray_number + 1) % NO_RAYS_PER_PIXEL) * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE) as u64);
+        encoder.set_buffer(8, Some(&self.noise_buffer), (mem::size_of::<f32>() * (NO_RAYS_PER_PIXEL + (ray_number + 1) % NO_RAYS_PER_PIXEL) * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE) as u64);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
