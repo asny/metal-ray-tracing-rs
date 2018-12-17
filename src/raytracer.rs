@@ -3,12 +3,12 @@ use metal::*;
 use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
-use rand::prelude::*;
 
 const NO_RAYS_PER_PIXEL: usize = 10;
+const NOISE_BLOCK_SIZE: usize = 128;
+
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
-const NOISE_BLOCK_SIZE: usize = 128;
 
 #[derive(Copy, Clone, Debug)]
 struct Triangle
@@ -74,7 +74,7 @@ impl RayTracer {
             vertex_data.append(&mut model.mesh.positions.clone());
             triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
 
-            if let Some(emissive) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
+            if let Some(_emissive) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
                 for i in index_data.len()/3..(index_data.len() + model.mesh.indices.len())/3 {
                     emitter_triangle_data.push( EmitterTriangle {primitive_index: i as u32} );
                 }
@@ -190,6 +190,7 @@ impl RayTracer {
 
     pub fn encode_into(&self, ray_number: usize, command_buffer: &CommandBufferRef)
     {
+        println!("Ray: {}", ray_number);
 
         self.encode_ray_generator(command_buffer, ray_number);
 
@@ -260,7 +261,7 @@ impl RayTracer {
     fn encode_accumulator(&self, command_buffer: &CommandBufferRef, ray_number: usize)
     {
         unsafe {
-            let mut ptr = self.app_buffer.contents() as *mut ApplicationData;
+            let ptr = self.app_buffer.contents() as *mut ApplicationData;
             *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32};
         }
 
