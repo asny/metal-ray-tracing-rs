@@ -4,9 +4,11 @@ use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
 use cgmath::*;
+use mersenne_twister::MT19937;
+use rand::Rng;
 
-const NOISE_BLOCK_SIZE: usize = 128;
-const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * 4;
+const NOISE_BLOCK_SIZE: usize = 16;
+const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 3;
 
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
@@ -62,7 +64,9 @@ pub struct RayTracer {
     accumulator_pipeline_state: ComputePipelineState,
     ray_generator_pipeline_state: ComputePipelineState,
     intersection_handler_pipeline_state: ComputePipelineState,
-    shadow_handler_pipeline_state: ComputePipelineState
+    shadow_handler_pipeline_state: ComputePipelineState,
+
+    rng: MT19937
 }
 
 impl RayTracer {
@@ -153,16 +157,17 @@ impl RayTracer {
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
         let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
-            no_emitter_triangles: emitter_triangle_data.len(), total_light_area, output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
+            no_emitter_triangles: emitter_triangle_data.len(), total_light_area, output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state,
+            rng: MT19937::new_unseeded()};
         val.resize(device, width, height);
         val
     }
 
-    fn update_noise_buffer(&self)
+    fn update_noise_buffer(&mut self)
     {
         let mut data = [0.0f32; NOISE_BUFFER_SIZE];
         for i in 0..NOISE_BUFFER_SIZE {
-            data[i] = rand::random::<f32>();
+            data[i] = self.rng.next_f32();
         }
 
         unsafe {
@@ -206,9 +211,8 @@ impl RayTracer {
 
     }
 
-    pub fn encode_into(&self, ray_number: usize, command_buffer: &CommandBufferRef)
+    pub fn encode_into(&mut self, ray_number: usize, command_buffer: &CommandBufferRef)
     {
-        println!("Ray: {}", ray_number);
         self.update_noise_buffer();
 
         self.encode_ray_generator(command_buffer, ray_number);
@@ -258,7 +262,7 @@ impl RayTracer {
         encoder.set_buffer(5, Some(&self.index_buffer), 0);
         encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
         encoder.set_buffer(7, Some(&self.app_buffer), 0);
-        encoder.set_buffer(8, Some(&self.noise_buffer), (mem::size_of::<f32>() * NOISE_BUFFER_SIZE/2) as u64);
+        encoder.set_buffer(8, Some(&self.noise_buffer), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
