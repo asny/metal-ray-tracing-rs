@@ -3,6 +3,7 @@ use metal::*;
 use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
+use cgmath::*;
 
 const NOISE_BLOCK_SIZE: usize = 128;
 const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * 4;
@@ -30,7 +31,8 @@ struct EmitterTriangle
 struct ApplicationData
 {
     ray_number: u32,
-    emitter_triangles_count: u32
+    emitter_triangles_count: u32,
+    total_light_area: f32
 }
 
 pub struct RayTracer {
@@ -50,6 +52,7 @@ pub struct RayTracer {
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
     no_emitter_triangles: usize,
+    total_light_area: f32,
 
     test_pipeline_state: ComputePipelineState,
     accumulator_pipeline_state: ComputePipelineState,
@@ -90,6 +93,20 @@ impl RayTracer {
             println!("{:?}", material);
             material_data.push(Material { diffuse: material.diffuse });
         }
+
+        let mut total_light_area = 0.0f32;
+        for triangle in emitter_triangle_data.iter() {
+            let triangle_index = triangle.primitive_index as usize * 3;
+            let mut i = index_data[triangle_index] as usize;
+            let p0 = cgmath::Vector3::new(vertex_data[i], vertex_data[i + 1],vertex_data[i + 2]);
+            i = index_data[triangle_index + 1] as usize;
+            let p1 = cgmath::Vector3::new(vertex_data[i], vertex_data[i + 1],vertex_data[i + 2]);
+            i = index_data[triangle_index + 2] as usize;
+            let p2 = cgmath::Vector3::new(vertex_data[i], vertex_data[i + 1],vertex_data[i + 2]);
+
+            total_light_area += 0.5 * (p1 - p0).cross(p2 - p0).magnitude();
+        }
+        total_light_area /= emitter_triangle_data.len() as f32;
 
         // Build acceleration structure:
         let vertex_buffer = device.new_buffer_with_data( unsafe { mem::transmute(vertex_data.as_ptr()) },
@@ -134,7 +151,7 @@ impl RayTracer {
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
         let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
-            no_emitter_triangles: emitter_triangle_data.len(), output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
+            no_emitter_triangles: emitter_triangle_data.len(), total_light_area, output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
     }
@@ -262,7 +279,7 @@ impl RayTracer {
     {
         unsafe {
             let ptr = self.app_buffer.contents() as *mut ApplicationData;
-            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32};
+            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, total_light_area: self.total_light_area};
         }
 
         let encoder = command_buffer.new_compute_command_encoder();

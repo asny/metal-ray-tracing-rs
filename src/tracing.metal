@@ -47,6 +47,7 @@ struct ApplicationData
 {
     uint frameIndex;
     uint emitterTrianglesCount;
+    float totalLightArea;
 };
 
 device const EmitterTriangle& sampleEmitterTriangle(
@@ -134,6 +135,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     float3 light_normal = cross(e-d, f-d);
     float light_area = length(light_normal) * 0.5;
     light_normal /= 2.0 * light_area;
+    float light_pdf = light_area / appData.totalLightArea;
     float3 light_dir = light_position - intersection_point;
     float light_dist = length(light_dir);
     light_dir /= light_dist;
@@ -141,11 +143,9 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     // Find color
     float materialBsdf = (1.0 / PI) * dot(light_dir, normal);
     float cosTheta = -dot(light_dir, light_normal);
-    /*float pointSamplePdf = (light_dist * light_dist) / (emitterTriangle.area * cosTheta);
-    float lightSamplePdf = emitterTriangle.pdf * pointSamplePdf;
-    rays[rayIndex].color = emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);*/
-    float pointSamplePdf = (light_dist * light_dist) / (cosTheta);
-    float lightSamplePdf = pointSamplePdf;
+    float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
+    float lightSamplePdf = light_pdf * pointSamplePdf;
+    //rays[rayIndex].color = emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);
     rays[rayIndex].color = material.diffuse * (materialBsdf / lightSamplePdf);
 
     // Set shadow ray
