@@ -163,19 +163,6 @@ impl RayTracer {
         val
     }
 
-    fn update_noise_buffer(&mut self)
-    {
-        let mut data = [0.0f32; NOISE_BUFFER_SIZE];
-        for i in 0..NOISE_BUFFER_SIZE {
-            data[i] = self.rng.next_f32();
-        }
-
-        unsafe {
-            let ptr = self.noise_buffer.contents() as *mut [f32; NOISE_BUFFER_SIZE];
-            *ptr = mem::transmute(data);
-        }
-    }
-
     fn create_compute_pipeline_state(device: &DeviceRef, file_path: &str, function_name: &str) -> ComputePipelineState
     {
         let mut file = File::open(file_path).unwrap();
@@ -214,8 +201,9 @@ impl RayTracer {
     pub fn encode_into(&mut self, ray_number: usize, command_buffer: &CommandBufferRef)
     {
         self.update_noise_buffer();
+        self.update_app_buffer(ray_number);
 
-        self.encode_ray_generator(command_buffer, ray_number);
+        self.encode_ray_generator(command_buffer);
 
         self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
                                                                    MPSIntersectionType::nearest,
@@ -224,7 +212,7 @@ impl RayTracer {
                                                                    (self.output_image_size.0 * self.output_image_size.1) as u64,
                                                                    &self.acceleration_structure);
 
-        self.encode_intersection_handler(command_buffer, ray_number);
+        self.encode_intersection_handler(command_buffer);
 
         self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
                                                                    MPSIntersectionType::any,
@@ -235,10 +223,31 @@ impl RayTracer {
 
         self.encode_shadow_handler(command_buffer);
 
-        self.encode_accumulator(command_buffer, ray_number);
+        self.encode_accumulator(command_buffer);
     }
 
-    fn encode_ray_generator(&self, command_buffer: &CommandBufferRef, ray_number: usize)
+    fn update_noise_buffer(&mut self)
+    {
+        let mut data = [0.0f32; NOISE_BUFFER_SIZE];
+        for i in 0..NOISE_BUFFER_SIZE {
+            data[i] = self.rng.next_f32();
+        }
+
+        unsafe {
+            let ptr = self.noise_buffer.contents() as *mut [f32; NOISE_BUFFER_SIZE];
+            *ptr = mem::transmute(data);
+        }
+    }
+
+    fn update_app_buffer(&mut self, ray_number: usize)
+    {
+        unsafe {
+            let ptr = self.app_buffer.contents() as *mut ApplicationData;
+            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, emitter_total_area: self.total_light_area};
+        }
+    }
+
+    fn encode_ray_generator(&self, command_buffer: &CommandBufferRef)
     {
         let encoder = command_buffer.new_compute_command_encoder();
 
@@ -250,7 +259,7 @@ impl RayTracer {
         encoder.end_encoding();
     }
 
-    fn encode_intersection_handler(&self, command_buffer: &CommandBufferRef, ray_number: usize)
+    fn encode_intersection_handler(&self, command_buffer: &CommandBufferRef)
     {
         let encoder = command_buffer.new_compute_command_encoder();
 
@@ -281,13 +290,8 @@ impl RayTracer {
         encoder.end_encoding();
     }
 
-    fn encode_accumulator(&self, command_buffer: &CommandBufferRef, ray_number: usize)
+    fn encode_accumulator(&self, command_buffer: &CommandBufferRef)
     {
-        unsafe {
-            let ptr = self.app_buffer.contents() as *mut ApplicationData;
-            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, emitter_total_area: self.total_light_area};
-        }
-
         let encoder = command_buffer.new_compute_command_encoder();
 
         encoder.set_texture(0, Some(self.output_image.as_ref().unwrap()));
