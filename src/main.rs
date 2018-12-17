@@ -84,6 +84,9 @@ fn main() {
     let mut pool = unsafe { NSAutoreleasePool::new(cocoa::base::nil) };
     let mut running = true;
 
+    let mut ray_number = 0;
+    const MAX_NO_RAYS: usize = 1000;
+
     while running {
         events_loop.poll_events(|event| {
             match event {
@@ -111,8 +114,11 @@ fn main() {
         if let Some(drawable) = layer.next_drawable() {
 
             let command_buffer = command_queue.new_command_buffer();
-            raytracer.encode_into(command_buffer);
-            encode_blit_into(&command_buffer, &blit_pipeline_state, raytracer.output_texture(), &drawable.texture());
+            if ray_number < MAX_NO_RAYS {
+                raytracer.encode_into(ray_number, command_buffer);
+                encode_blit_into(&command_buffer, &blit_pipeline_state, raytracer.output_texture(), &drawable.texture());
+                ray_number += 1;
+            }
 
             command_buffer.present_drawable(&drawable);
             command_buffer.commit();
