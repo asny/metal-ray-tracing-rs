@@ -75,16 +75,15 @@ float3 barycentric(float2 smp)
 }
 
 kernel void generateRays(device Ray* rays [[buffer(0)]],
-                         device const packed_float4* noise [[buffer(1)]],
+                         device const packed_float3* noise [[buffer(1)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
 {
     const float3 origin = float3(0.0f, 1.0f, 2.1f);
 
-    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) +
-        NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
+    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
 
-    device const packed_float4& noiseSample = noise[noiseSampleIndex];
+    device const packed_float3& noiseSample = noise[noiseSampleIndex];
     float2 rnd = (noiseSample.xy * 2.0 - 1.0) / float2(size - 1);
 
     float aspect = float(size.x) / float(size.y);
@@ -107,7 +106,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
                                 device const packed_uint3* indices [[buffer(5)]],
                                 device const EmitterTriangle* emitterTriangles [[buffer(6)]],
                                 device const ApplicationData& appData [[buffer(7)]],
-                                device const packed_float4* noise [[buffer(8)]],
+                                device const packed_float3* noise [[buffer(8)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
@@ -131,7 +130,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
 
     // Sample light
     uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
-    device const packed_float4& noiseSample = noise[noiseSampleIndex];
+    device const packed_float3& noiseSample = noise[noiseSampleIndex];
     device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, appData.emitterTotalArea, noiseSample.x);
 
     // Light attributes

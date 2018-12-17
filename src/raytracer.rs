@@ -7,8 +7,8 @@ use cgmath::*;
 use mersenne_twister::MT19937;
 use rand::Rng;
 
-const NOISE_BLOCK_SIZE: usize = 128;
-const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * 4;
+const NOISE_BLOCK_SIZE: usize = 256;
+const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * 3;
 
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
