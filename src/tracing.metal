@@ -5,7 +5,7 @@ using namespace metal;
 
 constant float PI = 3.1415926535897932384626433832795;
 constant float EPSILON = 0.000001;
-constant uint NOISE_BLOCK_SIZE = 128;
+constant uint NOISE_BLOCK_SIZE = 16;
 
 struct Ray {
     packed_float3 origin;

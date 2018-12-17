@@ -83,7 +83,7 @@ fn main() {
     let mut running = true;
 
     let mut ray_number = 0;
-    const MAX_NO_RAYS: usize = 200;
+    const MAX_NO_RAYS: usize = 1000;
 
     while running {
         events_loop.poll_events(|event| {
