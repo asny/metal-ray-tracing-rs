@@ -23,17 +23,20 @@ struct Material
     diffuse: [f32; 3]
 }
 
+#[derive(Copy, Clone, Debug)]
 struct EmitterTriangle
 {
     primitive_index: u32,
-    emissive: [f32; 3]
+    emissive: [f32; 3],
+    area: f32
 }
 
+#[derive(Copy, Clone, Debug)]
 struct ApplicationData
 {
     ray_number: u32,
     emitter_triangles_count: u32,
-    total_light_area: f32
+    emitter_total_area: f32
 }
 
 pub struct RayTracer {
@@ -72,6 +75,7 @@ impl RayTracer {
         let mut index_data = Vec::new();
         let mut triangle_data = Vec::new();
         let mut emitter_triangle_data = Vec::new();
+        let mut total_light_area = 0.0f32;
         for model in models {
             println!("{:?}", model);
             let index = (vertex_data.len() / 3) as u32;
@@ -79,13 +83,23 @@ impl RayTracer {
             triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
 
             if let Some(emissive_string) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
-                for i in index_data.len()/3..(index_data.len() + model.mesh.indices.len())/3 {
-                    let mut emissive = parse_float3(emissive_string);
-                    emitter_triangle_data.push( EmitterTriangle {primitive_index: i as u32, emissive} );
+                for model_primitive_index in 0..model.mesh.indices.len()/3 {
+                    let mut i = 3 * model.mesh.indices[model_primitive_index*3] as usize;
+                    let p0 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+                    i = 3 * model.mesh.indices[model_primitive_index*3 + 1] as usize;
+                    let p1 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+                    i = 3 * model.mesh.indices[model_primitive_index*3 + 2] as usize;
+                    let p2 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+
+                    let area = 0.5 * (p1 - p0).cross(p2 - p0).magnitude();
+                    total_light_area += area;
+                    let emissive = parse_float3(emissive_string);
+
+                    emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, emissive, area} );
                 }
             }
 
-            for i in model.mesh.indices {
+            for i in model.mesh.indices.iter() {
                 index_data.push(index + i);
             }
         }
@@ -95,20 +109,6 @@ impl RayTracer {
             println!("{:?}", material);
             material_data.push(Material { diffuse: material.diffuse });
         }
-
-        let mut total_light_area = 0.0f32;
-        for triangle in emitter_triangle_data.iter() {
-            let triangle_index = triangle.primitive_index as usize * 3;
-            let mut i = index_data[triangle_index] as usize;
-            let p0 = cgmath::Vector3::new(vertex_data[i], vertex_data[i + 1],vertex_data[i + 2]);
-            i = index_data[triangle_index + 1] as usize;
-            let p1 = cgmath::Vector3::new(vertex_data[i], vertex_data[i + 1],vertex_data[i + 2]);
-            i = index_data[triangle_index + 2] as usize;
-            let p2 = cgmath::Vector3::new(vertex_data[i], vertex_data[i + 1],vertex_data[i + 2]);
-
-            total_light_area += 0.5 * (p1 - p0).cross(p2 - p0).magnitude();
-        }
-        total_light_area /= emitter_triangle_data.len() as f32;
 
         // Build acceleration structure:
         let vertex_buffer = device.new_buffer_with_data( unsafe { mem::transmute(vertex_data.as_ptr()) },
@@ -281,7 +281,7 @@ impl RayTracer {
     {
         unsafe {
             let ptr = self.app_buffer.contents() as *mut ApplicationData;
-            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, total_light_area: self.total_light_area};
+            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, emitter_total_area: self.total_light_area};
         }
 
         let encoder = command_buffer.new_compute_command_encoder();

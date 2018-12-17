@@ -42,21 +42,29 @@ struct EmitterTriangle
 {
     uint primitiveIndex;
     packed_float3 emissive;
+    float area;
 };
 
 struct ApplicationData
 {
     uint frameIndex;
     uint emitterTrianglesCount;
-    float totalLightArea;
+    float emitterTotalArea;
 };
 
-device const EmitterTriangle& sampleEmitterTriangle(
-    device const EmitterTriangle* triangles, uint triangleCount, float xi)
+device const EmitterTriangle& sampleEmitterTriangle(device const EmitterTriangle* triangles, uint triangleCount, float totalArea, float xi)
 {
-    uint index = 0;
-    for (; (index < triangleCount) && (float(index+1)/float(triangleCount) <= xi); ++index);
-    return triangles[index];
+    float cfd = 0.0;
+    for (uint index = 0; index < triangleCount-1; index++)
+    {
+        float pdf = triangles[index].area / totalArea;
+        cfd += pdf;
+        if (xi < cfd)
+        {
+            return triangles[index];
+        }
+    }
+    return triangles[triangleCount-1];
 }
 
 float3 barycentric(float2 smp)
@@ -121,22 +129,20 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     // Find normal
     float3 normal = normalize(cross(b-a, c-a));
 
-    // Find light point
+    // Sample light
     uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
     device const packed_float4& noiseSample = noise[noiseSampleIndex];
-    device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
+    device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, appData.emitterTotalArea, noiseSample.x);
+
+    // Light attributes
     float3 lightTriangleBarycentric = barycentric(noiseSample.yz);
     device const packed_uint3& lightTriangleIndices = indices[emitterTriangle.primitiveIndex];
     device const packed_float3& d = vertices[lightTriangleIndices.x];
     device const packed_float3& e = vertices[lightTriangleIndices.y];
     device const packed_float3& f = vertices[lightTriangleIndices.z];
     float3 light_position = lightTriangleBarycentric.x * d + lightTriangleBarycentric.y * e + lightTriangleBarycentric.z * f;
-
-    // Light attributes
-    float3 light_normal = cross(e-d, f-d);
-    float light_area = length(light_normal) * 0.5;
-    light_normal /= 2.0 * light_area;
-    float light_pdf = light_area / appData.totalLightArea;
+    float3 light_normal = normalize(cross(e-d, f-d));
+    float light_pdf = emitterTriangle.area / appData.emitterTotalArea;
     float3 light_dir = light_position - intersection_point;
     float light_dist = length(light_dir);
     light_dir /= light_dist;
@@ -144,7 +150,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     // Find color
     float materialBsdf = (1.0 / PI) * dot(light_dir, normal);
     float cosTheta = -dot(light_dir, light_normal);
-    float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
+    float pointSamplePdf = (light_dist * light_dist) / (emitterTriangle.area * cosTheta);
     float lightSamplePdf = light_pdf * pointSamplePdf;
     rays[rayIndex].color = emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);
 
