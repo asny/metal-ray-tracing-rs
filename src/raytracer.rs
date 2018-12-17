@@ -208,7 +208,6 @@ impl RayTracer {
 
     pub fn encode_into(&self, ray_number: usize, command_buffer: &CommandBufferRef)
     {
-        println!("Ray: {}", ray_number);
         self.update_noise_buffer();
 
         self.encode_ray_generator(command_buffer, ray_number);

@@ -113,6 +113,9 @@ fn main() {
 
             let command_buffer = command_queue.new_command_buffer();
             if ray_number < MAX_NO_RAYS {
+                if (ray_number+1) % 10 == 0 {
+                    println!("Ray number: {}", ray_number+1);
+                }
                 raytracer.encode_into(ray_number, command_buffer);
                 ray_number += 1;
             }
