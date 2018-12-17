@@ -7,6 +7,8 @@ use cgmath::*;
 use mersenne_twister::MT19937;
 use rand::Rng;
 
+const MAX_NO_BOUNCES: usize = 1;
+
 const NOISE_BLOCK_SIZE: usize = 16;
 const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 3;
 
@@ -205,23 +207,26 @@ impl RayTracer {
 
         self.encode_ray_generator(command_buffer);
 
-        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
-                                                                   MPSIntersectionType::nearest,
-                                                                   self.ray_buffer.as_ref().unwrap(), 0,
-                                                                   self.intersection_buffer.as_ref().unwrap(), 0,
-                                                                   (self.output_image_size.0 * self.output_image_size.1) as u64,
-                                                                   &self.acceleration_structure);
+        for i in 0..MAX_NO_BOUNCES
+        {
+            self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                       MPSIntersectionType::nearest,
+                                                                       self.ray_buffer.as_ref().unwrap(), 0,
+                                                                       self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                       (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                       &self.acceleration_structure);
 
-        self.encode_intersection_handler(command_buffer);
+            self.encode_intersection_handler(command_buffer);
 
-        self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
-                                                                   MPSIntersectionType::any,
-                                                                   self.ray_buffer.as_ref().unwrap(), 0,
-                                                                   self.intersection_buffer.as_ref().unwrap(), 0,
-                                                                   (self.output_image_size.0 * self.output_image_size.1) as u64,
-                                                                   &self.acceleration_structure);
+            self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
+                                                                       MPSIntersectionType::any,
+                                                                       self.ray_buffer.as_ref().unwrap(), 0,
+                                                                       self.intersection_buffer.as_ref().unwrap(), 0,
+                                                                       (self.output_image_size.0 * self.output_image_size.1) as u64,
+                                                                       &self.acceleration_structure);
 
-        self.encode_shadow_handler(command_buffer);
+            self.encode_shadow_handler(command_buffer);
+        }
 
         self.encode_accumulator(command_buffer);
     }
