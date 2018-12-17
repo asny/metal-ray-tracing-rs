@@ -4,8 +4,8 @@ use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
 
-const NO_RAYS_PER_PIXEL: usize = 10;
 const NOISE_BLOCK_SIZE: usize = 128;
+const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * 4;
 
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
@@ -107,7 +107,8 @@ impl RayTracer {
         let emitter_triangle_buffer = device.new_buffer_with_data( unsafe { mem::transmute(emitter_triangle_data.as_ptr()) },
                                      (emitter_triangle_data.len() * mem::size_of::<EmitterTriangle>()) as u64,
                                      MTLResourceOptions::CPUCacheModeDefaultCache);
-        let noise_buffer = Self::create_noise_buffer(device);
+        let noise_buffer = device.new_buffer((NOISE_BUFFER_SIZE * mem::size_of::<f32>()) as u64,
+                                             MTLResourceOptions::CPUCacheModeDefaultCache);
         let app_buffer = device.new_buffer(mem::size_of::<ApplicationData>() as u64, MTLResourceOptions::CPUCacheModeDefaultCache);
 
         let acceleration_structure = TriangleAccelerationStructure::new(&device);
@@ -138,19 +139,17 @@ impl RayTracer {
         val
     }
 
-    fn create_noise_buffer(device: &DeviceRef) -> Buffer
+    fn update_noise_buffer(&self)
     {
-        let mut data = Vec::new();
-        for _ in 0..NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * NO_RAYS_PER_PIXEL {
-            data.push(rand::random::<f32>());
-            data.push(rand::random::<f32>());
-            data.push(rand::random::<f32>());
-            data.push(rand::random::<f32>());
+        let mut data = [0.0f32; NOISE_BUFFER_SIZE];
+        for i in 0..NOISE_BUFFER_SIZE {
+            data[i] = rand::random::<f32>();
         }
-        
-        device.new_buffer_with_data( unsafe { mem::transmute(data.as_ptr()) },
-                                     (data.len() * mem::size_of::<f32>()) as u64,
-                                     MTLResourceOptions::CPUCacheModeDefaultCache)
+
+        unsafe {
+            let ptr = self.noise_buffer.contents() as *mut [f32; NOISE_BUFFER_SIZE];
+            *ptr = mem::transmute(data);
+        }
     }
 
     fn create_compute_pipeline_state(device: &DeviceRef, file_path: &str, function_name: &str) -> ComputePipelineState
@@ -191,6 +190,7 @@ impl RayTracer {
     pub fn encode_into(&self, ray_number: usize, command_buffer: &CommandBufferRef)
     {
         println!("Ray: {}", ray_number);
+        self.update_noise_buffer();
 
         self.encode_ray_generator(command_buffer, ray_number);
 
@@ -220,7 +220,7 @@ impl RayTracer {
         let encoder = command_buffer.new_compute_command_encoder();
 
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
-        encoder.set_buffer(1, Some(&self.noise_buffer), (mem::size_of::<f32>() * ray_number * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE) as u64);
+        encoder.set_buffer(1, Some(&self.noise_buffer), 0);
         encoder.set_compute_pipeline_state(&self.ray_generator_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
@@ -239,7 +239,7 @@ impl RayTracer {
         encoder.set_buffer(5, Some(&self.index_buffer), 0);
         encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
         encoder.set_buffer(7, Some(&self.app_buffer), 0);
-        encoder.set_buffer(8, Some(&self.noise_buffer), (mem::size_of::<f32>() * (NO_RAYS_PER_PIXEL + (ray_number + 1) % NO_RAYS_PER_PIXEL) * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE) as u64);
+        encoder.set_buffer(8, Some(&self.noise_buffer), (mem::size_of::<f32>() * NOISE_BUFFER_SIZE/2) as u64);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 

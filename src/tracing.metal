@@ -117,8 +117,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
 
     // Find light point
-    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) +
-        NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
+    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
     device const packed_float4& noiseSample = noise[noiseSampleIndex];
     device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
     float3 lightTriangleBarycentric = barycentric(noiseSample.yz);
