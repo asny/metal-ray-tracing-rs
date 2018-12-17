@@ -101,6 +101,7 @@ fn main() {
                             ..
                         } => match (virtual_code, state) {
                             (winit::VirtualKeyCode::Escape, _) => running = false,
+                            (winit::VirtualKeyCode::R, _) => ray_number = 0,
                             _ => (),
                         },
                         _ => (),
@@ -108,6 +109,10 @@ fn main() {
                 _ => {}
             }
         });
+
+        if ray_number == 0 {
+            println!("Started ray tracing");
+        }
 
         if let Some(drawable) = layer.next_drawable() {
 
@@ -128,6 +133,10 @@ fn main() {
                 msg_send![pool, drain];
                 pool = NSAutoreleasePool::new(cocoa::base::nil);
             }
+        }
+        if ray_number == MAX_NO_RAYS {
+            println!("Finished ray tracing");
+            ray_number += 1;
         }
     }
 }
