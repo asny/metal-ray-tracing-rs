@@ -3,6 +3,7 @@
 
 using namespace metal;
 
+constant float PI = 3.1415926535897932384626433832795;
 constant float EPSILON = 0.000001;
 constant uint NOISE_BLOCK_SIZE = 128;
 
@@ -40,20 +41,30 @@ struct Triangle
 struct EmitterTriangle
 {
     uint primitiveIndex;
+    packed_float3 emissive;
+    float area;
 };
 
 struct ApplicationData
 {
     uint frameIndex;
     uint emitterTrianglesCount;
+    float emitterTotalArea;
 };
 
-device const EmitterTriangle& sampleEmitterTriangle(
-    device const EmitterTriangle* triangles, uint triangleCount, float xi)
+device const EmitterTriangle& sampleEmitterTriangle(device const EmitterTriangle* triangles, uint triangleCount, float totalArea, float xi)
 {
-    uint index = 0;
-    for (; (index < triangleCount) && (float(index+1)/float(triangleCount) <= xi); ++index);
-    return triangles[index];
+    float cfd = 0.0;
+    for (uint index = 0; index < triangleCount-1; index++)
+    {
+        float pdf = triangles[index].area / totalArea;
+        cfd += pdf;
+        if (xi < cfd)
+        {
+            return triangles[index];
+        }
+    }
+    return triangles[triangleCount-1];
 }
 
 float3 barycentric(float2 smp)
@@ -107,7 +118,6 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
 
     device const Triangle& triangle = triangles[intersection.primitiveIndex];
     device const Material& material = materials[triangle.materialIndex];
-    rays[rayIndex].color = material.diffuse;
 
     // Find intersection point
     device const packed_uint3& triangleIndices = indices[intersection.primitiveIndex];
@@ -116,24 +126,39 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const packed_float3& c = vertices[triangleIndices.z];
     float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
 
-    // Find light point
+    // Find normal
+    float3 normal = normalize(cross(b-a, c-a));
+
+    // Sample light
     uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
     device const packed_float4& noiseSample = noise[noiseSampleIndex];
-    device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
+    device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, appData.emitterTotalArea, noiseSample.x);
+
+    // Light attributes
     float3 lightTriangleBarycentric = barycentric(noiseSample.yz);
     device const packed_uint3& lightTriangleIndices = indices[emitterTriangle.primitiveIndex];
     device const packed_float3& d = vertices[lightTriangleIndices.x];
     device const packed_float3& e = vertices[lightTriangleIndices.y];
     device const packed_float3& f = vertices[lightTriangleIndices.z];
     float3 light_position = lightTriangleBarycentric.x * d + lightTriangleBarycentric.y * e + lightTriangleBarycentric.z * f;
+    float3 light_normal = normalize(cross(e-d, f-d));
+    float light_pdf = emitterTriangle.area / appData.emitterTotalArea;
+    float3 light_dir = light_position - intersection_point;
+    float light_dist = length(light_dir);
+    light_dir /= light_dist;
+
+    // Find color
+    float materialBsdf = (1.0 / PI) * dot(light_dir, normal);
+    float cosTheta = -dot(light_dir, light_normal);
+    float pointSamplePdf = (light_dist * light_dist) / (emitterTriangle.area * cosTheta);
+    float lightSamplePdf = light_pdf * pointSamplePdf;
+    rays[rayIndex].color = emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);
 
     // Set shadow ray
-    float3 dir = light_position - intersection_point;
-    float dist = length(dir);
     rays[rayIndex].origin = intersection_point;
-    rays[rayIndex].direction = dir / dist;
+    rays[rayIndex].direction = light_dir;
     rays[rayIndex].minDistance = EPSILON;
-    rays[rayIndex].maxDistance = dist - EPSILON;
+    rays[rayIndex].maxDistance = light_dist - EPSILON;
 }
 
 kernel void handleShadows(device Ray* rays [[buffer(0)]],

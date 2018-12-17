@@ -3,6 +3,7 @@ use metal::*;
 use std::mem;
 use std::fs::File;
 use std::io::prelude::*;
+use cgmath::*;
 
 const NOISE_BLOCK_SIZE: usize = 128;
 const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 2 * 4;
@@ -22,15 +23,20 @@ struct Material
     diffuse: [f32; 3]
 }
 
+#[derive(Copy, Clone, Debug)]
 struct EmitterTriangle
 {
-    primitive_index: u32
+    primitive_index: u32,
+    emissive: [f32; 3],
+    area: f32
 }
 
+#[derive(Copy, Clone, Debug)]
 struct ApplicationData
 {
     ray_number: u32,
-    emitter_triangles_count: u32
+    emitter_triangles_count: u32,
+    emitter_total_area: f32
 }
 
 pub struct RayTracer {
@@ -50,6 +56,7 @@ pub struct RayTracer {
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
     no_emitter_triangles: usize,
+    total_light_area: f32,
 
     test_pipeline_state: ComputePipelineState,
     accumulator_pipeline_state: ComputePipelineState,
@@ -68,19 +75,31 @@ impl RayTracer {
         let mut index_data = Vec::new();
         let mut triangle_data = Vec::new();
         let mut emitter_triangle_data = Vec::new();
+        let mut total_light_area = 0.0f32;
         for model in models {
             println!("{:?}", model);
             let index = (vertex_data.len() / 3) as u32;
             vertex_data.append(&mut model.mesh.positions.clone());
             triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
 
-            if let Some(_emissive) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
-                for i in index_data.len()/3..(index_data.len() + model.mesh.indices.len())/3 {
-                    emitter_triangle_data.push( EmitterTriangle {primitive_index: i as u32} );
+            if let Some(emissive_string) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
+                for model_primitive_index in 0..model.mesh.indices.len()/3 {
+                    let mut i = 3 * model.mesh.indices[model_primitive_index*3] as usize;
+                    let p0 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+                    i = 3 * model.mesh.indices[model_primitive_index*3 + 1] as usize;
+                    let p1 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+                    i = 3 * model.mesh.indices[model_primitive_index*3 + 2] as usize;
+                    let p2 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+
+                    let area = 0.5 * (p1 - p0).cross(p2 - p0).magnitude();
+                    total_light_area += area;
+                    let emissive = parse_float3(emissive_string);
+
+                    emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, emissive, area} );
                 }
             }
 
-            for i in model.mesh.indices {
+            for i in model.mesh.indices.iter() {
                 index_data.push(index + i);
             }
         }
@@ -134,7 +153,7 @@ impl RayTracer {
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
         let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
-            no_emitter_triangles: emitter_triangle_data.len(), output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
+            no_emitter_triangles: emitter_triangle_data.len(), total_light_area, output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state};
         val.resize(device, width, height);
         val
     }
@@ -262,7 +281,7 @@ impl RayTracer {
     {
         unsafe {
             let ptr = self.app_buffer.contents() as *mut ApplicationData;
-            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32};
+            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, emitter_total_area: self.total_light_area};
         }
 
         let encoder = command_buffer.new_compute_command_encoder();
@@ -301,4 +320,13 @@ impl RayTracer {
         self.output_image.as_ref().unwrap()
     }
 
+}
+
+fn parse_float3(val_str: &str) -> [f32; 3] {
+    let mut words = val_str[..].split_whitespace();
+    let mut vals = [0.0f32; 3];
+    for (i, p) in words.enumerate() {
+        vals[i] = std::str::FromStr::from_str(p).unwrap();
+    }
+    vals
 }

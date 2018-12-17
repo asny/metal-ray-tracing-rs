@@ -10,4 +10,5 @@ objc = "0.2.5"
 winit = "0.17"
 tobj = "0.1.6"
 rand = "0.5.5"
+cgmath = "0.16.1"
 metal = { path = "metal_lib/" }
