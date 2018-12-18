@@ -209,6 +209,12 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     device const Triangle& surface_triangle = triangles[ray.surfacePrimitiveIndex];
     device const Material& surface_material = materials[surface_triangle.materialIndex];
 
+    // Handle the case where the ray hit an emitter
+    if (length_squared(surface_material.emissive) > EPSILON)
+    {
+        ray.color += surface_material.emissive * ray.throughput;
+    }
+
     // Calculate color contribution
     if (intersection.distance < 0.0f) // No intersection => Nothing blocking the light
     {
