@@ -67,11 +67,35 @@ device const EmitterTriangle& sampleEmitterTriangle(device const EmitterTriangle
     return triangles[triangleCount-1];
 }
 
+void buildOrthonormalBasis(float3 n, thread float3& u, thread float3& v)
+{
+    float s = (n.z < 0.0 ? -1.0f : 1.0f);
+    float a = -1.0f / (s + n.z);
+    float b = n.x * n.y * a;
+    u = float3(1.0f + s * n.x * n.x * a, s * b, -s * n.x);
+    v = float3(b, s + n.y * n.y * a, -n.y);
+}
+
 float3 barycentric(float2 smp)
 {
     float r1 = sqrt(smp.x);
     float r2 = smp.y;
     return float3(1.0f - r1, r1 * (1.0f - r2), r1 * r2);
+}
+
+float3 alignToDirection(float3 n, float cosTheta, float phi)
+{
+    float3 u;
+    float3 v;
+    buildOrthonormalBasis(n, u, v);
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+    return (u * cos(phi) + v * sin(phi)) * sinTheta + n * cosTheta;
+}
+
+float3 sampleCosineWeightedHemisphere(float3 n, float2 xi)
+{
+    float cosTheta = sqrt(xi.x);
+    return alignToDirection(n, cosTheta, xi.y * 2.0 * PI);
 }
 
 kernel void generateRays(device Ray* rays [[buffer(0)]],
