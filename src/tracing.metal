@@ -13,6 +13,9 @@ struct Ray {
     packed_float3 direction;
     float maxDistance;
     packed_float3 color;
+    uint surfacePrimitiveIndex;
+    uint lightPrimitiveIndex;
+    packed_float3 throughput;
 };
 
 struct Intersection {
@@ -31,6 +34,7 @@ enum MaterialType
 struct Material
 {
     packed_float3 diffuse;
+    packed_float3 emissive;
 };
 
 struct Triangle
@@ -121,17 +125,16 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
     ray.minDistance = EPSILON;
     ray.maxDistance = INFINITY;
     ray.color = float3(0.0);
+    ray.throughput = float3(1.0);
 }
 
-kernel void handleIntersections(device const Intersection* intersections [[buffer(0)]],
-                                device const Material* materials [[buffer(1)]],
-                                device const Triangle* triangles [[buffer(2)]],
-                                device Ray* rays [[buffer(3)]],
-                                device const packed_float3* vertices [[buffer(4)]],
-                                device const packed_uint3* indices [[buffer(5)]],
+kernel void handleIntersections(device Ray* rays [[buffer(0)]],
+                                device const Intersection* intersections [[buffer(1)]],
+                                device const packed_float3* vertices [[buffer(2)]],
+                                device const packed_uint3* indices [[buffer(3)]],
+                                device const ApplicationData& appData [[buffer(4)]],
+                                device const packed_float4* noise [[buffer(5)]],
                                 device const EmitterTriangle* emitterTriangles [[buffer(6)]],
-                                device const ApplicationData& appData [[buffer(7)]],
-                                device const packed_float4* noise [[buffer(8)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
@@ -139,14 +142,11 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const Intersection& intersection = intersections[rayIndex];
     device Ray& ray = rays[rayIndex];
 
-    if (intersection.distance < EPSILON)
+    if (intersection.distance < EPSILON) // No intersection => No surface is hit
     {
         ray.maxDistance = -1.0;
         return;
     }
-
-    device const Triangle& triangle = triangles[intersection.primitiveIndex];
-    device const Material& material = materials[triangle.materialIndex];
 
     // Find intersection point
     device const packed_uint3& triangleIndices = indices[intersection.primitiveIndex];
@@ -154,9 +154,6 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const packed_float3& b = vertices[triangleIndices.y];
     device const packed_float3& c = vertices[triangleIndices.z];
     float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
-
-    // Find normal
-    float3 normal = normalize(cross(b-a, c-a));
 
     // Sample light
     uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
@@ -170,20 +167,13 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     device const packed_float3& e = vertices[lightTriangleIndices.y];
     device const packed_float3& f = vertices[lightTriangleIndices.z];
     float3 light_position = lightTriangleBarycentric.x * d + lightTriangleBarycentric.y * e + lightTriangleBarycentric.z * f;
-    float3 light_normal = normalize(cross(e-d, f-d));
-    float light_pdf = emitterTriangle.area / appData.emitterTotalArea;
     float3 light_dir = light_position - intersection_point;
     float light_dist = length(light_dir);
     light_dir /= light_dist;
 
-    // Find color
-    float materialBsdf = (1.0 / PI) * dot(light_dir, normal);
-    float cosTheta = -dot(light_dir, light_normal);
-    float pointSamplePdf = (light_dist * light_dist) / (emitterTriangle.area * cosTheta);
-    float lightSamplePdf = light_pdf * pointSamplePdf;
-    ray.color += emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);
-
     // Setup shadow ray
+    ray.surfacePrimitiveIndex = intersection.primitiveIndex;
+    ray.lightPrimitiveIndex = emitterTriangle.primitiveIndex;
     ray.origin = intersection_point;
     ray.direction = light_dir;
     ray.minDistance = EPSILON;
@@ -192,7 +182,12 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
 
 kernel void handleShadows(device Ray* rays [[buffer(0)]],
                          device const Intersection* intersections [[buffer(1)]],
-                         device const packed_float4* noise [[buffer(2)]],
+                         device const packed_float3* vertices [[buffer(2)]],
+                         device const packed_uint3* indices [[buffer(3)]],
+                         device const ApplicationData& appData [[buffer(4)]],
+                         device const packed_float4* noise [[buffer(5)]],
+                         device const Material* materials [[buffer(6)]],
+                         device const Triangle* triangles [[buffer(7)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
 {
@@ -200,15 +195,53 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     device const Intersection& intersection = intersections[rayIndex];
     device Ray& ray = rays[rayIndex];
 
+    if (ray.maxDistance < 0.0f) // Previously no surface is hit
+    {
+        return;
+    }
+
+    // surface normal
+    device const packed_uint3& triangleIndices = indices[ray.surfacePrimitiveIndex];
+    device const packed_float3& a = vertices[triangleIndices.x];
+    device const packed_float3& b = vertices[triangleIndices.y];
+    device const packed_float3& c = vertices[triangleIndices.z];
+    float3 surface_normal = normalize(cross(b-a, c-a));
+
+    // Calculate color contribution
+    if (intersection.distance < 0.0f) // No intersection => Nothing blocking the light
+    {
+        device const Triangle& surface_triangle = triangles[ray.surfacePrimitiveIndex];
+        device const Material& surface_material = materials[surface_triangle.materialIndex];
+
+        // light
+        device const Triangle& light_triangle = triangles[ray.lightPrimitiveIndex];
+        device const Material& light_material = materials[light_triangle.materialIndex];
+
+        device const packed_uint3& light_triangle_indices = indices[ray.lightPrimitiveIndex];
+        device const packed_float3& d = vertices[light_triangle_indices.x];
+        device const packed_float3& e = vertices[light_triangle_indices.y];
+        device const packed_float3& f = vertices[light_triangle_indices.z];
+        float3 light_normal = cross(e-d, f-d);
+        float light_area = length(light_normal) * 0.5;
+        light_normal /= light_area * 2.0;
+        float3 light_dir = ray.direction;
+        float light_dist = ray.maxDistance + EPSILON;
+        float light_pdf = light_area / appData.emitterTotalArea;
+
+        float materialBsdf = (1.0 / PI) * dot(light_dir, surface_normal);
+        float cosTheta = -dot(light_dir, light_normal);
+        float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
+        float lightSamplePdf = light_pdf * pointSamplePdf;
+
+        ray.throughput *= surface_material.diffuse;
+        ray.color += light_material.emissive * ray.throughput * (materialBsdf / lightSamplePdf);
+    }
+
     uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
     device const packed_float4& noiseSample = noise[noiseSampleIndex];
 
-    // Calculate color contribution
-    if (rays[rayIndex].maxDistance < 0.0f || intersection.distance >= 0.0f) {
-        rays[rayIndex].color = float3(0.0);
-    }
     // Setup next ray bounce
-    ray.direction = sampleCosineWeightedHemisphere(float3(0.0, 1.0, 0.0), noiseSample.wx);
+    ray.direction = sampleCosineWeightedHemisphere(surface_normal, noiseSample.wx);
     ray.minDistance = EPSILON;
     ray.maxDistance = INFINITY;
 }

@@ -7,12 +7,12 @@ use cgmath::*;
 use mersenne_twister::MT19937;
 use rand::Rng;
 
-const MAX_NO_BOUNCES: usize = 1;
+const MAX_NO_BOUNCES: usize = 2;
 
 const NOISE_BLOCK_SIZE: usize = 16;
 const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 4;
 
-const SIZE_OF_RAY: usize = 44;
+const SIZE_OF_RAY: usize = 64;
 const SIZE_OF_INTERSECTION: usize = 16;
 
 #[derive(Copy, Clone, Debug)]
@@ -24,7 +24,8 @@ struct Triangle
 #[derive(Copy, Clone, Debug)]
 struct Material
 {
-    diffuse: [f32; 3]
+    diffuse: [f32; 3],
+    emissive: [f32; 3]
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -113,7 +114,10 @@ impl RayTracer {
         let mut material_data = Vec::new();
         for material in materials {
             println!("{:?}", material);
-            material_data.push(Material { diffuse: material.diffuse });
+            let emissive = if let Some(emissive_string) = material.unknown_param.get("Ke") {
+                parse_float3(emissive_string)
+            } else {[0.0f32;3]};
+            material_data.push(Material { diffuse: material.diffuse, emissive});
         }
 
         // Build acceleration structure:
@@ -268,15 +272,13 @@ impl RayTracer {
     {
         let encoder = command_buffer.new_compute_command_encoder();
 
-        encoder.set_buffer(0, Some(self.intersection_buffer.as_ref().unwrap()), 0);
-        encoder.set_buffer(1, Some(&self.material_buffer), 0);
-        encoder.set_buffer(2, Some(&self.triangle_buffer), 0);
-        encoder.set_buffer(3, Some(self.ray_buffer.as_ref().unwrap()), 0);
-        encoder.set_buffer(4, Some(&self.vertex_buffer), 0);
-        encoder.set_buffer(5, Some(&self.index_buffer), 0);
+        encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(1, Some(self.intersection_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(2, Some(&self.vertex_buffer), 0);
+        encoder.set_buffer(3, Some(&self.index_buffer), 0);
+        encoder.set_buffer(4, Some(&self.app_buffer), 0);
+        encoder.set_buffer(5, Some(&self.noise_buffer), 0);
         encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
-        encoder.set_buffer(7, Some(&self.app_buffer), 0);
-        encoder.set_buffer(8, Some(&self.noise_buffer), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
@@ -289,7 +291,12 @@ impl RayTracer {
 
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
         encoder.set_buffer(1, Some(self.intersection_buffer.as_ref().unwrap()), 0);
-        encoder.set_buffer(2, Some(&self.noise_buffer), 0);
+        encoder.set_buffer(2, Some(&self.vertex_buffer), 0);
+        encoder.set_buffer(3, Some(&self.index_buffer), 0);
+        encoder.set_buffer(4, Some(&self.app_buffer), 0);
+        encoder.set_buffer(5, Some(&self.noise_buffer), 0);
+        encoder.set_buffer(6, Some(&self.material_buffer), 0);
+        encoder.set_buffer(7, Some(&self.triangle_buffer), 0);
         encoder.set_compute_pipeline_state(&self.shadow_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
