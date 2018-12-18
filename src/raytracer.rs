@@ -18,7 +18,8 @@ const SIZE_OF_INTERSECTION: usize = 16;
 #[derive(Copy, Clone, Debug)]
 struct Triangle
 {
-    material_index: u32
+    material_index: u32,
+    normal: [f32; 3]
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -86,19 +87,23 @@ impl RayTracer {
         for model in models {
             println!("{:?}", model);
             let index = (vertex_data.len() / 3) as u32;
+            let material_id = model.mesh.material_id.unwrap();
             vertex_data.append(&mut model.mesh.positions.clone());
-            triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
 
-            if let Some(_) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
-                for model_primitive_index in 0..model.mesh.indices.len()/3 {
-                    let mut i = 3 * model.mesh.indices[model_primitive_index*3] as usize;
-                    let p0 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
-                    i = 3 * model.mesh.indices[model_primitive_index*3 + 1] as usize;
-                    let p1 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
-                    i = 3 * model.mesh.indices[model_primitive_index*3 + 2] as usize;
-                    let p2 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+            for model_primitive_index in 0..model.mesh.indices.len()/3 {
+                let mut i = 3 * model.mesh.indices[model_primitive_index*3] as usize;
+                let p0 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+                i = 3 * model.mesh.indices[model_primitive_index*3 + 1] as usize;
+                let p1 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
+                i = 3 * model.mesh.indices[model_primitive_index*3 + 2] as usize;
+                let p2 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
 
-                    let area = 0.5 * (p1 - p0).cross(p2 - p0).magnitude();
+                let normal_dir = (p1 - p0).cross(p2 - p0);
+                let normal = normal_dir.normalize();
+                triangle_data.push(Triangle {material_index: material_id as u32, normal: [normal.x, normal.y, normal.z]});
+
+                if let Some(_) = materials[material_id].unknown_param.get("Ke") {
+                    let area = 0.5 * normal_dir.magnitude();
                     total_light_area += area;
 
                     emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, pdf: area} );

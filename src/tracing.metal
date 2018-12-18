@@ -39,6 +39,7 @@ struct Material
 struct Triangle
 {
     uint materialIndex;
+    packed_float3 normal;
 };
 
 struct EmitterTriangle
@@ -197,24 +198,18 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
                          uint2 size [[threads_per_grid]])
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
-    device const Intersection& intersection = intersections[rayIndex];
     device Ray& ray = rays[rayIndex];
-    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
 
     if (ray.maxDistance < 0.0f) // Previously no surface is hit
     {
         return;
     }
 
-    // surface
-    device const packed_uint3& triangleIndices = indices[ray.surfacePrimitiveIndex];
-    device const packed_float3& a = vertices[triangleIndices.x];
-    device const packed_float3& b = vertices[triangleIndices.y];
-    device const packed_float3& c = vertices[triangleIndices.z];
-    float3 surface_normal = normalize(cross(b-a, c-a));
-
+    device const Intersection& intersection = intersections[rayIndex];
+    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
     device const Triangle& surface_triangle = triangles[ray.surfacePrimitiveIndex];
     device const Material& surface_material = materials[surface_triangle.materialIndex];
+    float3 surface_normal = surface_triangle.normal;
 
     // Handle the case where the ray hit an emitter
     if (length_squared(surface_material.emissive) > EPSILON)
