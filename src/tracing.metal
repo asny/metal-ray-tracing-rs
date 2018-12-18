@@ -3,7 +3,6 @@
 
 using namespace metal;
 
-constant float PI = 3.1415926535897932384626433832795;
 constant float EPSILON = 0.000001;
 constant uint NOISE_BLOCK_SIZE = 16;
 
@@ -99,7 +98,7 @@ float3 alignToDirection(float3 n, float cosTheta, float phi)
 float3 sampleCosineWeightedHemisphere(float3 n, float2 xi)
 {
     float cosTheta = sqrt(xi.x);
-    return alignToDirection(n, cosTheta, xi.y * 2.0 * PI);
+    return alignToDirection(n, cosTheta, xi.y * 2.0 * M_PI_F);
 }
 
 kernel void generateRays(device Ray* rays [[buffer(0)]],
@@ -228,7 +227,7 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
         float light_dist = ray.maxDistance + EPSILON;
         float light_pdf = light_area / appData.emitterTotalArea;
 
-        float materialBsdf = (1.0 / PI) * dot(light_dir, surface_normal);
+        float materialBsdf = (1.0 / M_PI_F) * dot(light_dir, surface_normal);
         float cosTheta = -dot(light_dir, light_normal);
         float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
         float lightSamplePdf = light_pdf * pointSamplePdf;
