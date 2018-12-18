@@ -222,6 +222,8 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
         ray.color += surface_material.emissive * ray.throughput;
     }
 
+    ray.throughput *= surface_material.diffuse;
+
     // Calculate color contribution
     if (intersection.distance < 0.0f) // No intersection => Nothing blocking the light
     {
@@ -249,7 +251,6 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     }
 
     // Setup next ray bounce
-    ray.throughput *= surface_material.diffuse;
     ray.direction = sampleCosineWeightedHemisphere(surface_normal, noiseSample.wx);
     ray.minDistance = EPSILON;
     ray.maxDistance = INFINITY;
