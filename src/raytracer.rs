@@ -42,8 +42,7 @@ struct ApplicationData
 {
     ray_number: u32,
     bounce_number: u32,
-    emitter_triangles_count: u32,
-    emitter_total_area: f32
+    emitter_triangles_count: u32
 }
 
 pub struct RayTracer {
@@ -63,7 +62,6 @@ pub struct RayTracer {
     output_image: Option<Texture>,
     output_image_size: (usize, usize, usize),
     no_emitter_triangles: usize,
-    total_light_area: f32,
 
     test_pipeline_state: ComputePipelineState,
     accumulator_pipeline_state: ComputePipelineState,
@@ -171,7 +169,7 @@ impl RayTracer {
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
         let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
-            no_emitter_triangles: emitter_triangle_data.len(), total_light_area, output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state,
+            no_emitter_triangles: emitter_triangle_data.len(), output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state,
             rng: MT19937::new_unseeded()};
         val.resize(device, width, height);
         val
@@ -263,7 +261,7 @@ impl RayTracer {
     {
         unsafe {
             let ptr = self.app_buffer.contents() as *mut ApplicationData;
-            *ptr = ApplicationData {ray_number: ray_number as u32, bounce_number: bounce_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, emitter_total_area: self.total_light_area};
+            *ptr = ApplicationData {ray_number: ray_number as u32, bounce_number: bounce_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32};
         }
     }
 

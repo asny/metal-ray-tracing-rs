@@ -54,7 +54,6 @@ struct ApplicationData
     uint frameIndex;
     uint bounceIndex;
     uint emitterTrianglesCount;
-    float emitterTotalArea;
 };
 
 uint sampleEmitterTriangle(device const EmitterTriangle* triangles, uint triangleCount, float xi)
