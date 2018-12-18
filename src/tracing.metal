@@ -44,7 +44,7 @@ struct Triangle
 struct EmitterTriangle
 {
     uint primitiveIndex;
-    float area;
+    float pdf;
 };
 
 struct ApplicationData
@@ -55,13 +55,12 @@ struct ApplicationData
     float emitterTotalArea;
 };
 
-device const EmitterTriangle& sampleEmitterTriangle(device const EmitterTriangle* triangles, uint triangleCount, float totalArea, float xi)
+device const EmitterTriangle& sampleEmitterTriangle(device const EmitterTriangle* triangles, uint triangleCount, float xi)
 {
     float cfd = 0.0;
     for (uint index = 0; index < triangleCount-1; index++)
     {
-        float pdf = triangles[index].area / totalArea;
-        cfd += pdf;
+        cfd += triangles[index].pdf;
         if (xi < cfd)
         {
             return triangles[index];
@@ -163,7 +162,7 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
 
     // Sample light
-    device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, appData.emitterTotalArea, noiseSample.x);
+    device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
 
     // Light attributes
     float3 lightTriangleBarycentric = barycentric(noiseSample.yz);

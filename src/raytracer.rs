@@ -32,7 +32,7 @@ struct Material
 struct EmitterTriangle
 {
     primitive_index: u32,
-    area: f32
+    pdf: f32
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -101,13 +101,17 @@ impl RayTracer {
                     let area = 0.5 * (p1 - p0).cross(p2 - p0).magnitude();
                     total_light_area += area;
 
-                    emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, area} );
+                    emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, pdf: area} );
                 }
             }
 
             for i in model.mesh.indices.iter() {
                 index_data.push(index + i);
             }
+        }
+
+        for emitter_triangle_datum in emitter_triangle_data.iter_mut() {
+            emitter_triangle_datum.pdf /= total_light_area;
         }
 
         let mut material_data = Vec::new();
