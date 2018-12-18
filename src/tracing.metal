@@ -100,6 +100,15 @@ float3 sampleCosineWeightedHemisphere(float3 n, float2 xi)
     return alignToDirection(n, cosTheta, xi.y * 2.0 * M_PI_F);
 }
 
+float3 pointOnTriangle(device const packed_uint3* indices, device const packed_float3* vertices, uint primitiveIndex, float2 coordinates)
+{
+    device const packed_uint3& triangleIndices = indices[primitiveIndex];
+    device const packed_float3& a = vertices[triangleIndices.x];
+    device const packed_float3& b = vertices[triangleIndices.y];
+    device const packed_float3& c = vertices[triangleIndices.z];
+    return coordinates.x * a + coordinates.y * b + (1.0 - coordinates.x - coordinates.y) * c;
+}
+
 device const packed_float4& sampleNoise(device const packed_float4* noise, uint2 coordinates, uint bounceIndex)
 {
     uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE)
@@ -155,30 +164,22 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     }
 
     // Find intersection point
-    device const packed_uint3& triangleIndices = indices[intersection.primitiveIndex];
-    device const packed_float3& a = vertices[triangleIndices.x];
-    device const packed_float3& b = vertices[triangleIndices.y];
-    device const packed_float3& c = vertices[triangleIndices.z];
-    float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
+    float3 surface_position = pointOnTriangle(indices, vertices, intersection.primitiveIndex, intersection.coordinates);
 
     // Sample light
     device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
 
     // Light attributes
     float3 lightTriangleBarycentric = barycentric(noiseSample.yz);
-    device const packed_uint3& lightTriangleIndices = indices[emitterTriangle.primitiveIndex];
-    device const packed_float3& d = vertices[lightTriangleIndices.x];
-    device const packed_float3& e = vertices[lightTriangleIndices.y];
-    device const packed_float3& f = vertices[lightTriangleIndices.z];
-    float3 light_position = lightTriangleBarycentric.x * d + lightTriangleBarycentric.y * e + lightTriangleBarycentric.z * f;
-    float3 light_dir = light_position - intersection_point;
+    float3 light_position = pointOnTriangle(indices, vertices, emitterTriangle.primitiveIndex, lightTriangleBarycentric.xy);
+    float3 light_dir = light_position - surface_position;
     float light_dist = length(light_dir);
     light_dir /= light_dist;
 
     // Setup shadow ray
     ray.surfacePrimitiveIndex = intersection.primitiveIndex;
     ray.lightPrimitiveIndex = emitterTriangle.primitiveIndex;
-    ray.origin = intersection_point;
+    ray.origin = surface_position;
     ray.direction = light_dir;
     ray.minDistance = EPSILON;
     ray.maxDistance = light_dist - EPSILON;
