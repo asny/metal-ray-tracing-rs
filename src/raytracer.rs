@@ -153,7 +153,6 @@ impl RayTracer {
         ray_intersector.set_ray_stride(SIZE_OF_RAY as u64);
         ray_intersector.set_ray_data_type(MPSRayDataType::originMinDistanceDirectionMaxDistance);
         ray_intersector.set_intersection_stride(SIZE_OF_INTERSECTION as u64);
-        ray_intersector.set_intersection_data_type(MPSIntersectionDataType::distancePrimitiveIndexCoordinates);
 
         // Pipeline states:
         let test_pipeline_state = Self::create_compute_pipeline_state(device, "src/test.metal", "imageFillTest");
@@ -213,6 +212,7 @@ impl RayTracer {
 
         for i in 0..MAX_NO_BOUNCES
         {
+            self.ray_intersector.set_intersection_data_type(MPSIntersectionDataType::distancePrimitiveIndexCoordinates);
             self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
                                                                        MPSIntersectionType::nearest,
                                                                        self.ray_buffer.as_ref().unwrap(), 0,
@@ -222,6 +222,7 @@ impl RayTracer {
 
             self.encode_intersection_handler(command_buffer);
 
+            self.ray_intersector.set_intersection_data_type(MPSIntersectionDataType::distance);
             self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
                                                                        MPSIntersectionType::any,
                                                                        self.ray_buffer.as_ref().unwrap(), 0,
