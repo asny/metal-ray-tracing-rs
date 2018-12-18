@@ -103,8 +103,10 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
 {
-    const float3 origin = float3(0.0f, 1.0f, 2.1f);
+    uint rayIndex = coordinates.x + coordinates.y * size.x;
+    device Ray& ray = rays[rayIndex];
 
+    const float3 origin = float3(0.0f, 1.0f, 2.1f);
     uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
     device const packed_float4& noiseSample = noise[noiseSampleIndex];
     float2 rnd = (noiseSample.xy * 2.0 - 1.0) / float2(size - 1);
@@ -114,11 +116,11 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
 
     float3 direction = float3(aspect * (uv.x + rnd.x), (uv.y + rnd.y), -1.0f);
 
-    uint rayIndex = coordinates.x + coordinates.y * size.x;
-    rays[rayIndex].origin = origin;
-    rays[rayIndex].direction = normalize(direction);
-    rays[rayIndex].minDistance = EPSILON;
-    rays[rayIndex].maxDistance = INFINITY;
+    ray.origin = origin;
+    ray.direction = normalize(direction);
+    ray.minDistance = EPSILON;
+    ray.maxDistance = INFINITY;
+    ray.color = float3(0.0);
 }
 
 kernel void handleIntersections(device const Intersection* intersections [[buffer(0)]],
@@ -135,9 +137,11 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
     device const Intersection& intersection = intersections[rayIndex];
+    device Ray& ray = rays[rayIndex];
+
     if (intersection.distance < EPSILON)
     {
-        rays[rayIndex].maxDistance = -1.0;
+        ray.maxDistance = -1.0;
         return;
     }
 
@@ -177,13 +181,13 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
     float cosTheta = -dot(light_dir, light_normal);
     float pointSamplePdf = (light_dist * light_dist) / (emitterTriangle.area * cosTheta);
     float lightSamplePdf = light_pdf * pointSamplePdf;
-    rays[rayIndex].color = emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);
+    ray.color += emitterTriangle.emissive * material.diffuse * (materialBsdf / lightSamplePdf);
 
-    // Set shadow ray
-    rays[rayIndex].origin = intersection_point;
-    rays[rayIndex].direction = light_dir;
-    rays[rayIndex].minDistance = EPSILON;
-    rays[rayIndex].maxDistance = light_dist - EPSILON;
+    // Setup shadow ray
+    ray.origin = intersection_point;
+    ray.direction = light_dir;
+    ray.minDistance = EPSILON;
+    ray.maxDistance = light_dist - EPSILON;
 }
 
 kernel void handleShadows(device Ray* rays [[buffer(0)]],
@@ -192,12 +196,18 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
                          uint2 size [[threads_per_grid]])
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
+    device const Intersection& intersection = intersections[rayIndex];
+    device Ray& ray = rays[rayIndex];
 
-    float intersectionDistance = intersections[rayIndex].distance;
 
-    if (rays[rayIndex].maxDistance < 0.0f || intersectionDistance >= 0.0f) {
+    // Calculate color contribution
+    if (rays[rayIndex].maxDistance < 0.0f || intersection.distance >= 0.0f) {
         rays[rayIndex].color = float3(0.0);
     }
+    // Setup next ray bounce
+    ray.direction = sampleCosineWeightedHemisphere(float3(0.0, 1.0, 0.0), noiseSample.wx);
+    ray.minDistance = EPSILON;
+    ray.maxDistance = INFINITY;
 }
 
 kernel void accumulateImage(
