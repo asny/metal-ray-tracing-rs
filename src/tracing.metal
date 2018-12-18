@@ -234,12 +234,15 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
         float3 light_dir = ray.direction;
         float light_dist = ray.maxDistance + EPSILON;
 
-        float materialBsdf = (1.0 / M_PI_F) * dot(light_dir, surface_normal);
         float cosTheta = -dot(light_dir, light_normal);
-        float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
-        float lightSamplePdf = light_pdf * pointSamplePdf;
+        if(cosTheta > EPSILON) // Shadow ray hits the back of the light source
+        {
+            float materialBsdf = (1.0 / M_PI_F) * dot(light_dir, surface_normal);
+            float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
+            float lightSamplePdf = light_pdf * pointSamplePdf;
+            ray.color += light_material.emissive * ray.throughput * (materialBsdf / lightSamplePdf);
+        }
 
-        ray.color += light_material.emissive * ray.throughput * (materialBsdf / lightSamplePdf);
     }
 
     // Setup next ray bounce
