@@ -32,7 +32,6 @@ struct Material
 struct EmitterTriangle
 {
     primitive_index: u32,
-    emissive: [f32; 3],
     area: f32
 }
 
@@ -90,7 +89,7 @@ impl RayTracer {
             vertex_data.append(&mut model.mesh.positions.clone());
             triangle_data.append(&mut vec![Triangle {material_index: model.mesh.material_id.unwrap() as u32}; model.mesh.indices.len()/3]);
 
-            if let Some(emissive_string) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
+            if let Some(_) = materials[model.mesh.material_id.unwrap()].unknown_param.get("Ke") {
                 for model_primitive_index in 0..model.mesh.indices.len()/3 {
                     let mut i = 3 * model.mesh.indices[model_primitive_index*3] as usize;
                     let p0 = cgmath::Vector3::new(model.mesh.positions[i], model.mesh.positions[i + 1],model.mesh.positions[i + 2]);
@@ -101,9 +100,8 @@ impl RayTracer {
 
                     let area = 0.5 * (p1 - p0).cross(p2 - p0).magnitude();
                     total_light_area += area;
-                    let emissive = parse_float3(emissive_string);
 
-                    emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, emissive, area} );
+                    emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, area} );
                 }
             }
 

@@ -44,7 +44,6 @@ struct Triangle
 struct EmitterTriangle
 {
     uint primitiveIndex;
-    packed_float3 emissive;
     float area;
 };
 
