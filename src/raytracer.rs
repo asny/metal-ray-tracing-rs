@@ -33,6 +33,7 @@ struct Material
 struct EmitterTriangle
 {
     primitive_index: u32,
+    area: f32,
     pdf: f32
 }
 
@@ -106,7 +107,7 @@ impl RayTracer {
                     let area = 0.5 * normal_dir.magnitude();
                     total_light_area += area;
 
-                    emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, pdf: area} );
+                    emitter_triangle_data.push( EmitterTriangle {primitive_index: (index_data.len()/3 + model_primitive_index) as u32, area, pdf: area} );
                 }
             }
 
@@ -305,8 +306,9 @@ impl RayTracer {
         encoder.set_buffer(3, Some(&self.index_buffer), 0);
         encoder.set_buffer(4, Some(&self.app_buffer), 0);
         encoder.set_buffer(5, Some(&self.noise_buffer), 0);
-        encoder.set_buffer(6, Some(&self.material_buffer), 0);
-        encoder.set_buffer(7, Some(&self.triangle_buffer), 0);
+        encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
+        encoder.set_buffer(7, Some(&self.material_buffer), 0);
+        encoder.set_buffer(8, Some(&self.triangle_buffer), 0);
         encoder.set_compute_pipeline_state(&self.shadow_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 

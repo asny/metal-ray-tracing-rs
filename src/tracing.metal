@@ -45,6 +45,7 @@ struct Triangle
 struct EmitterTriangle
 {
     uint primitiveIndex;
+    float area;
     float pdf;
 };
 
@@ -56,7 +57,7 @@ struct ApplicationData
     float emitterTotalArea;
 };
 
-device const EmitterTriangle& sampleEmitterTriangle(device const EmitterTriangle* triangles, uint triangleCount, float xi)
+uint sampleEmitterTriangle(device const EmitterTriangle* triangles, uint triangleCount, float xi)
 {
     float cfd = 0.0;
     for (uint index = 0; index < triangleCount-1; index++)
@@ -64,10 +65,10 @@ device const EmitterTriangle& sampleEmitterTriangle(device const EmitterTriangle
         cfd += triangles[index].pdf;
         if (xi < cfd)
         {
-            return triangles[index];
+            return index;
         }
     }
-    return triangles[triangleCount-1];
+    return triangleCount-1;
 }
 
 void buildOrthonormalBasis(float3 n, thread float3& u, thread float3& v)
@@ -168,18 +169,18 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     float3 surface_position = pointOnTriangle(indices, vertices, intersection.primitiveIndex, intersection.coordinates);
 
     // Sample light
-    device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
+    uint emitterPrimitiveIndex = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
 
     // Light attributes
     float3 lightTriangleBarycentric = barycentric(noiseSample.yz);
-    float3 light_position = pointOnTriangle(indices, vertices, emitterTriangle.primitiveIndex, lightTriangleBarycentric.xy);
+    float3 light_position = pointOnTriangle(indices, vertices, emitterTriangles[emitterPrimitiveIndex].primitiveIndex, lightTriangleBarycentric.xy);
     float3 light_dir = light_position - surface_position;
     float light_dist = length(light_dir);
     light_dir /= light_dist;
 
     // Setup shadow ray
     ray.surfacePrimitiveIndex = intersection.primitiveIndex;
-    ray.lightPrimitiveIndex = emitterTriangle.primitiveIndex;
+    ray.lightPrimitiveIndex = emitterPrimitiveIndex;
     ray.origin = surface_position;
     ray.direction = light_dir;
     ray.minDistance = EPSILON;
@@ -192,8 +193,9 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
                          device const packed_uint3* indices [[buffer(3)]],
                          device const ApplicationData& appData [[buffer(4)]],
                          device const packed_float4* noise [[buffer(5)]],
-                         device const Material* materials [[buffer(6)]],
-                         device const Triangle* triangles [[buffer(7)]],
+                         device const EmitterTriangle* emitterTriangles [[buffer(6)]],
+                         device const Material* materials [[buffer(7)]],
+                         device const Triangle* triangles [[buffer(8)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
 {
@@ -223,19 +225,15 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     if (intersection.distance < 0.0f) // No intersection => Nothing blocking the light
     {
         // light
-        device const Triangle& light_triangle = triangles[ray.lightPrimitiveIndex];
+        device const EmitterTriangle& emitter_triangle = emitterTriangles[ray.lightPrimitiveIndex];
+        device const Triangle& light_triangle = triangles[emitter_triangle.primitiveIndex];
         device const Material& light_material = materials[light_triangle.materialIndex];
 
-        device const packed_uint3& light_triangle_indices = indices[ray.lightPrimitiveIndex];
-        device const packed_float3& d = vertices[light_triangle_indices.x];
-        device const packed_float3& e = vertices[light_triangle_indices.y];
-        device const packed_float3& f = vertices[light_triangle_indices.z];
-        float3 light_normal = cross(e-d, f-d);
-        float light_area = length(light_normal) * 0.5;
-        light_normal /= light_area * 2.0;
+        float light_area = emitter_triangle.area;
+        float light_pdf = emitter_triangle.pdf;
+        float3 light_normal = light_triangle.normal;
         float3 light_dir = ray.direction;
         float light_dist = ray.maxDistance + EPSILON;
-        float light_pdf = light_area / appData.emitterTotalArea;
 
         float materialBsdf = (1.0 / M_PI_F) * dot(light_dir, surface_normal);
         float cosTheta = -dot(light_dir, light_normal);
