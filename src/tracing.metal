@@ -192,6 +192,7 @@ kernel void handleIntersections(device const Intersection* intersections [[buffe
 
 kernel void handleShadows(device Ray* rays [[buffer(0)]],
                          device const Intersection* intersections [[buffer(1)]],
+                         device const packed_float4* noise [[buffer(2)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
 {
@@ -199,6 +200,8 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     device const Intersection& intersection = intersections[rayIndex];
     device Ray& ray = rays[rayIndex];
 
+    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
+    device const packed_float4& noiseSample = noise[noiseSampleIndex];
 
     // Calculate color contribution
     if (rays[rayIndex].maxDistance < 0.0f || intersection.distance >= 0.0f) {

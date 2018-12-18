@@ -289,6 +289,7 @@ impl RayTracer {
 
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
         encoder.set_buffer(1, Some(self.intersection_buffer.as_ref().unwrap()), 0);
+        encoder.set_buffer(2, Some(&self.noise_buffer), 0);
         encoder.set_compute_pipeline_state(&self.shadow_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
