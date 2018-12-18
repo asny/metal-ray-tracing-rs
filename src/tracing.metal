@@ -216,6 +216,8 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     if (length_squared(surface_material.emissive) > EPSILON)
     {
         ray.color += surface_material.emissive * ray.throughput;
+        ray.maxDistance = -1.0;
+        return;
     }
 
     ray.throughput *= surface_material.diffuse;
