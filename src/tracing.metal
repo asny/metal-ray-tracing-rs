@@ -199,19 +199,19 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
         return;
     }
 
-    // surface normal
+    // surface
     device const packed_uint3& triangleIndices = indices[ray.surfacePrimitiveIndex];
     device const packed_float3& a = vertices[triangleIndices.x];
     device const packed_float3& b = vertices[triangleIndices.y];
     device const packed_float3& c = vertices[triangleIndices.z];
     float3 surface_normal = normalize(cross(b-a, c-a));
 
+    device const Triangle& surface_triangle = triangles[ray.surfacePrimitiveIndex];
+    device const Material& surface_material = materials[surface_triangle.materialIndex];
+
     // Calculate color contribution
     if (intersection.distance < 0.0f) // No intersection => Nothing blocking the light
     {
-        device const Triangle& surface_triangle = triangles[ray.surfacePrimitiveIndex];
-        device const Material& surface_material = materials[surface_triangle.materialIndex];
-
         // light
         device const Triangle& light_triangle = triangles[ray.lightPrimitiveIndex];
         device const Material& light_material = materials[light_triangle.materialIndex];
@@ -232,7 +232,6 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
         float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
         float lightSamplePdf = light_pdf * pointSamplePdf;
 
-        ray.throughput *= surface_material.diffuse;
         ray.color += light_material.emissive * ray.throughput * (materialBsdf / lightSamplePdf);
     }
 
@@ -240,6 +239,7 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     device const packed_float4& noiseSample = noise[noiseSampleIndex];
 
     // Setup next ray bounce
+    ray.throughput *= surface_material.diffuse;
     ray.direction = sampleCosineWeightedHemisphere(surface_normal, noiseSample.wx);
     ray.minDistance = EPSILON;
     ray.maxDistance = INFINITY;
