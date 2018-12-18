@@ -13,7 +13,7 @@ struct Ray {
     float maxDistance;
     packed_float3 color;
     uint surfacePrimitiveIndex;
-    uint lightPrimitiveIndex;
+    uint emitterPrimitiveIndex;
     packed_float3 throughput;
 };
 
@@ -179,7 +179,7 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
 
     // Setup shadow ray
     ray.surfacePrimitiveIndex = intersection.primitiveIndex;
-    ray.lightPrimitiveIndex = emitterPrimitiveIndex;
+    ray.emitterPrimitiveIndex = emitterPrimitiveIndex;
     ray.origin = surface_position;
     ray.direction = light_dir;
     ray.minDistance = EPSILON;
@@ -224,7 +224,7 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     if (intersection.distance < 0.0f) // No intersection => Nothing blocking the light
     {
         // light
-        device const EmitterTriangle& emitter_triangle = emitterTriangles[ray.lightPrimitiveIndex];
+        device const EmitterTriangle& emitter_triangle = emitterTriangles[ray.emitterPrimitiveIndex];
         device const Triangle& light_triangle = triangles[emitter_triangle.primitiveIndex];
         device const Material& light_material = materials[light_triangle.materialIndex];
 
