@@ -10,7 +10,7 @@ use rand::Rng;
 const MAX_NO_BOUNCES: usize = 2;
 
 const NOISE_BLOCK_SIZE: usize = 16;
-const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 4;
+const NOISE_BUFFER_SIZE: usize = MAX_NO_BOUNCES * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 4;
 
 const SIZE_OF_RAY: usize = 64;
 const SIZE_OF_INTERSECTION: usize = 16;
@@ -40,6 +40,7 @@ struct EmitterTriangle
 struct ApplicationData
 {
     ray_number: u32,
+    bounce_number: u32,
     emitter_triangles_count: u32,
     emitter_total_area: f32
 }
@@ -206,12 +207,13 @@ impl RayTracer {
     pub fn encode_into(&mut self, ray_number: usize, command_buffer: &CommandBufferRef)
     {
         self.update_noise_buffer();
-        self.update_app_buffer(ray_number);
+        self.update_app_buffer(ray_number, 0);
 
         self.encode_ray_generator(command_buffer);
 
-        for i in 0..MAX_NO_BOUNCES
+        for bounce_number in 0..MAX_NO_BOUNCES
         {
+            self.update_app_buffer(ray_number, bounce_number);
             self.ray_intersector.set_intersection_data_type(MPSIntersectionDataType::distancePrimitiveIndexCoordinates);
             self.ray_intersector.encode_intersection_to_command_buffer(command_buffer,
                                                                        MPSIntersectionType::nearest,
@@ -249,11 +251,11 @@ impl RayTracer {
         }
     }
 
-    fn update_app_buffer(&mut self, ray_number: usize)
+    fn update_app_buffer(&mut self, ray_number: usize, bounce_number: usize)
     {
         unsafe {
             let ptr = self.app_buffer.contents() as *mut ApplicationData;
-            *ptr = ApplicationData {ray_number: ray_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, emitter_total_area: self.total_light_area};
+            *ptr = ApplicationData {ray_number: ray_number as u32, bounce_number: bounce_number as u32, emitter_triangles_count: self.no_emitter_triangles as u32, emitter_total_area: self.total_light_area};
         }
     }
 

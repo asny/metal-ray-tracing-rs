@@ -51,6 +51,7 @@ struct EmitterTriangle
 struct ApplicationData
 {
     uint frameIndex;
+    uint bounceIndex;
     uint emitterTrianglesCount;
     float emitterTotalArea;
 };
@@ -101,6 +102,14 @@ float3 sampleCosineWeightedHemisphere(float3 n, float2 xi)
     return alignToDirection(n, cosTheta, xi.y * 2.0 * M_PI_F);
 }
 
+device const packed_float4& sampleNoise(device const packed_float4* noise, uint2 coordinates, uint bounceIndex)
+{
+    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE)
+        + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE)
+        + bounceIndex * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE;
+    return noise[noiseSampleIndex];
+}
+
 kernel void generateRays(device Ray* rays [[buffer(0)]],
                          device const packed_float4* noise [[buffer(1)]],
                          uint2 coordinates [[thread_position_in_grid]],
@@ -110,8 +119,7 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
     device Ray& ray = rays[rayIndex];
 
     const float3 origin = float3(0.0f, 1.0f, 2.1f);
-    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
-    device const packed_float4& noiseSample = noise[noiseSampleIndex];
+    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, 0);
     float2 rnd = (noiseSample.xy * 2.0 - 1.0) / float2(size - 1);
 
     float aspect = float(size.x) / float(size.y);
@@ -140,6 +148,7 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     uint rayIndex = coordinates.x + coordinates.y * size.x;
     device const Intersection& intersection = intersections[rayIndex];
     device Ray& ray = rays[rayIndex];
+    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
 
     if (intersection.distance < EPSILON) // No intersection => No surface is hit
     {
@@ -155,8 +164,6 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     float3 intersection_point = intersection.coordinates.x * a + intersection.coordinates.y * b + (1.0 - intersection.coordinates.x - intersection.coordinates.y) * c;
 
     // Sample light
-    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
-    device const packed_float4& noiseSample = noise[noiseSampleIndex];
     device const EmitterTriangle& emitterTriangle = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, appData.emitterTotalArea, noiseSample.x);
 
     // Light attributes
@@ -193,6 +200,7 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     uint rayIndex = coordinates.x + coordinates.y * size.x;
     device const Intersection& intersection = intersections[rayIndex];
     device Ray& ray = rays[rayIndex];
+    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
 
     if (ray.maxDistance < 0.0f) // Previously no surface is hit
     {
@@ -240,9 +248,6 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
 
         ray.color += light_material.emissive * ray.throughput * (materialBsdf / lightSamplePdf);
     }
-
-    uint noiseSampleIndex = (coordinates.x % NOISE_BLOCK_SIZE) + NOISE_BLOCK_SIZE * (coordinates.y % NOISE_BLOCK_SIZE);
-    device const packed_float4& noiseSample = noise[noiseSampleIndex];
 
     // Setup next ray bounce
     ray.throughput *= surface_material.diffuse;
