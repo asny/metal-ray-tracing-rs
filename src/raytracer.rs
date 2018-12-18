@@ -10,7 +10,7 @@ use rand::Rng;
 const MAX_NO_BOUNCES: usize = 1;
 
 const NOISE_BLOCK_SIZE: usize = 16;
-const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 3;
+const NOISE_BUFFER_SIZE: usize = NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 4;
 
 const SIZE_OF_RAY: usize = 44;
 const SIZE_OF_INTERSECTION: usize = 16;
