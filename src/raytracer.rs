@@ -12,7 +12,7 @@ const MAX_NO_BOUNCES: usize = 8;
 const NOISE_BLOCK_SIZE: usize = 64;
 const NOISE_BUFFER_SIZE: usize = MAX_NO_BOUNCES * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 4;
 
-const SIZE_OF_RAY: usize = 64;
+const SIZE_OF_RAY: usize = 68;
 const SIZE_OF_INTERSECTION: usize = 16;
 
 #[derive(Copy, Clone, Debug)]
@@ -308,6 +308,7 @@ impl RayTracer {
         encoder.set_buffer(4, Some(&self.app_buffer), 0);
         encoder.set_buffer(5, Some(&self.noise_buffer), 0);
         encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
+        encoder.set_buffer(7, Some(&self.triangle_buffer), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 

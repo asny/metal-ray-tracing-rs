@@ -15,6 +15,7 @@ struct Ray {
     uint surfacePrimitiveIndex;
     uint emitterPrimitiveIndex;
     packed_float3 throughput;
+    uint hitBackOfTriangle;
 };
 
 struct Intersection {
@@ -162,21 +163,25 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
                                 device const ApplicationData& appData [[buffer(4)]],
                                 device const packed_float4* noise [[buffer(5)]],
                                 device const EmitterTriangle* emitterTriangles [[buffer(6)]],
+                                device const Triangle* triangles [[buffer(7)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
     device const Intersection& intersection = intersections[rayIndex];
     device Ray& ray = rays[rayIndex];
-    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
 
-    if (intersection.distance < EPSILON) // No intersection => No surface is hit
+    if (ray.maxDistance < 0.0f || intersection.distance < EPSILON) // No intersection => No surface is hit
     {
         ray.maxDistance = -1.0;
         return;
     }
 
-    // Find intersection point
+    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
+
+    Surface attributes
+    device const Triangle& surface_triangle = triangles[intersection.primitiveIndex];
+    float3 surface_normal = surface_triangle.normal;
     float3 surface_position = pointOnTriangle(indices, vertices, intersection.primitiveIndex, float3(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y));
 
     // Sample light
@@ -190,6 +195,7 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     light_dir /= light_dist;
 
     // Setup shadow ray
+    ray.hitBackOfTriangle = dot(float3(ray.direction), surface_normal) > EPSILON ? 1 : 0;
     ray.surfacePrimitiveIndex = intersection.primitiveIndex;
     ray.emitterPrimitiveIndex = emitterPrimitiveIndex;
     ray.origin = surface_position;
@@ -222,10 +228,10 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
     device const Triangle& surface_triangle = triangles[ray.surfacePrimitiveIndex];
     device const Material& surface_material = materials[surface_triangle.materialIndex];
-    float3 surface_normal = surface_triangle.normal;
+    float3 surface_normal = ray.hitBackOfTriangle ? - surface_triangle.normal : surface_triangle.normal;
 
     // Handle the case where the ray hit an emitter
-    if (length_squared(surface_material.emissive) > EPSILON)
+    if (length_squared(surface_material.emissive) > EPSILON && !ray.hitBackOfTriangle)
     {
         ray.color += surface_material.emissive * ray.throughput;
         ray.maxDistance = -1.0;
@@ -249,7 +255,9 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
         float light_dist = ray.maxDistance + EPSILON;
 
         float cosTheta = -dot(light_dir, light_normal);
-        if(cosTheta > EPSILON) // Shadow ray hits the back of the light source
+        bool hitBackOfLightTriangle = cosTheta < EPSILON;
+        bool shadowRayGoesThroughSurfaceTriangle = dot(surface_normal, light_dir) < EPSILON;
+        if(!hitBackOfLightTriangle && !shadowRayGoesThroughSurfaceTriangle)
         {
             float materialBsdf = (1.0 / M_PI_F) * dot(light_dir, surface_normal);
             float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
