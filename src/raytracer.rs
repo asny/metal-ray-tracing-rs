@@ -85,7 +85,7 @@ impl RayTracer {
 
     pub fn new(device: &DeviceRef, width: usize, height: usize) -> RayTracer
     {
-        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("../../Data/3D models/cornellbox/cornellbox.obj")).unwrap();
+        let (models, materials) = tobj::load_obj(&std::path::PathBuf::from("cornellbox.obj")).unwrap();
 
         let mut vertex_data = Vec::new();
         let mut index_data = Vec::new();
