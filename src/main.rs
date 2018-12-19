@@ -89,6 +89,7 @@ fn main() {
     let mut camera_position = Vector3::new(0.0, 1.0, 2.1);
     let mut camera_direction = Vector3::new(0.0, 0.0, -1.0);
     let mut camera_up = Vector3::new(0.0, 1.0, 0.0);
+    let mut navigating = false;
 
     while running {
         events_loop.poll_events(|event| {
@@ -104,10 +105,32 @@ fn main() {
                                     ..
                                 },
                             ..
-                        } => match (virtual_code, state) {
-                            (winit::VirtualKeyCode::Escape, _) => running = false,
-                            (winit::VirtualKeyCode::R, _) => ray_number = 0,
-                            _ => (),
+                            } => match (virtual_code, state) {
+                                (winit::VirtualKeyCode::Escape, _) => running = false,
+                                (winit::VirtualKeyCode::R, _) => ray_number = 0,
+                                _ => (),
+                            },
+                        winit::WindowEvent::MouseInput {
+                            button: winit::MouseButton::Left,
+                            state,
+                            ..
+                            } => {
+                                navigating = if state == winit::ElementState::Pressed {true} else {false};
+                                println!("Left button pressed {}", navigating)
+                            },
+                        _ => (),
+                },
+                winit::Event::DeviceEvent { event, .. } =>
+                    match event {
+                        winit::DeviceEvent::MouseMotion {
+                            delta
+                        } => {
+                            if navigating {
+                                println!("Mouse moved {:?}", delta);
+                                rotate_camera(delta, &mut camera_position, &mut camera_direction, &mut camera_up);
+                                ray_number = 0;
+                            }
+
                         },
                         _ => (),
                 },
@@ -144,4 +167,19 @@ fn main() {
             ray_number += 1;
         }
     }
+}
+
+fn rotate_camera(delta: (f64, f64), position: &mut Vector3<f32>, direction: &mut Vector3<f32>, up: &mut Vector3<f32>)
+{
+    let target = vec3(0.0f32, 1.0, 0.0);
+    let zoom = 2.1;
+
+    let x = -delta.0 as f32;
+    let y = delta.1 as f32;
+
+    let right_direction = direction.cross(*up);
+
+    *position += (right_direction * x + *up * y) * 0.1;
+    *direction = (target - *position).normalize();
+    *position = target - *direction * zoom;
 }
