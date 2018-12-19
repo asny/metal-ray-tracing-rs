@@ -116,7 +116,6 @@ fn main() {
                             ..
                             } => {
                                 navigating = if state == winit::ElementState::Pressed {true} else {false};
-                                println!("Left button pressed {}", navigating)
                             },
                         _ => (),
                 },
@@ -124,14 +123,18 @@ fn main() {
                     match event {
                         winit::DeviceEvent::MouseMotion {
                             delta
-                        } => {
-                            if navigating {
-                                println!("Mouse moved {:?}", delta);
-                                rotate_camera(delta, &mut camera_position, &camera_target, &camera_up);
+                            } => {
+                                if navigating {
+                                    rotate_camera(delta, &mut camera_position, &camera_target, &camera_up);
+                                    ray_number = 0;
+                                }
+                            },
+                        winit::DeviceEvent::MouseWheel {
+                            delta: winit::MouseScrollDelta::LineDelta(_, d)
+                            } => {
+                                zoom_camera(d, &mut camera_position, &camera_target);
                                 ray_number = 0;
-                            }
-
-                        },
+                            },
                         _ => (),
                 },
                 _ => {}
@@ -180,4 +183,12 @@ fn rotate_camera(delta: (f64, f64), position: &mut Vector3<f32>, target: &Vector
 
     *position += (right_direction * x + *up * y) * 0.1;
     *position = target - (target - *position).normalize() * zoom;
+}
+
+fn zoom_camera(delta: f32, position: &mut Vector3<f32>, target: &Vector3<f32>)
+{
+    let direction = target - *position;
+    let mut zoom = direction.magnitude() + delta;
+    if zoom < 0.1 {zoom = 0.1;};
+    *position = target - direction.normalize() * zoom;
 }
