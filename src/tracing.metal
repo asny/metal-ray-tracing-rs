@@ -179,7 +179,7 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
 
     device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
 
-    Surface attributes
+    // Surface attributes
     device const Triangle& surface_triangle = triangles[intersection.primitiveIndex];
     float3 surface_normal = surface_triangle.normal;
     float3 surface_position = pointOnTriangle(indices, vertices, intersection.primitiveIndex, float3(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y));
