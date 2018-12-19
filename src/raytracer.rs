@@ -38,6 +38,14 @@ struct EmitterTriangle
 }
 
 #[derive(Copy, Clone, Debug)]
+struct CameraData
+{
+    position: [f32; 3],
+    direction: [f32; 3],
+    up: [f32; 3]
+}
+
+#[derive(Copy, Clone, Debug)]
 struct ApplicationData
 {
     ray_number: u32,
@@ -55,6 +63,7 @@ pub struct RayTracer {
     material_buffer: Buffer,
     noise_buffer: Buffer,
     app_buffer: Buffer,
+    camera_buffer: Buffer,
     vertex_buffer: Buffer,
     index_buffer: Buffer,
     emitter_triangle_buffer: Buffer,
@@ -146,6 +155,7 @@ impl RayTracer {
         let noise_buffer = device.new_buffer((NOISE_BUFFER_SIZE * mem::size_of::<f32>()) as u64,
                                              MTLResourceOptions::CPUCacheModeDefaultCache);
         let app_buffer = device.new_buffer(mem::size_of::<ApplicationData>() as u64, MTLResourceOptions::CPUCacheModeDefaultCache);
+        let camera_buffer = device.new_buffer(mem::size_of::<CameraData>() as u64, MTLResourceOptions::CPUCacheModeDefaultCache);
 
         let acceleration_structure = TriangleAccelerationStructure::new(&device);
         acceleration_structure.set_vertex_buffer(Some(&vertex_buffer));
@@ -168,7 +178,7 @@ impl RayTracer {
         let shadow_handler_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "handleShadows");
         let accumulator_pipeline_state = Self::create_compute_pipeline_state(device, "src/tracing.metal", "accumulateImage");
 
-        let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None,
+        let mut val = RayTracer {acceleration_structure, ray_intersector, vertex_buffer, index_buffer, triangle_buffer, emitter_triangle_buffer, material_buffer, noise_buffer, app_buffer, ray_buffer: None, intersection_buffer: None, camera_buffer,
             no_emitter_triangles: emitter_triangle_data.len(), output_image: None, output_image_size: (0,0,0), test_pipeline_state, ray_generator_pipeline_state, intersection_handler_pipeline_state, shadow_handler_pipeline_state, accumulator_pipeline_state,
             rng: MT19937::new_unseeded()};
         val.resize(device, width, height);
@@ -210,10 +220,11 @@ impl RayTracer {
 
     }
 
-    pub fn encode_into(&mut self, ray_number: usize, command_buffer: &CommandBufferRef)
+    pub fn encode_into(&mut self, ray_number: usize, command_buffer: &CommandBufferRef, camera_position: &Vector3<f32>, camera_direction: &Vector3<f32>, camera_up: &Vector3<f32>)
     {
         self.update_noise_buffer();
         self.update_app_buffer(ray_number, 0);
+        self.update_camera_buffer(camera_position, camera_direction, camera_up);
 
         self.encode_ray_generator(command_buffer);
 
@@ -265,12 +276,21 @@ impl RayTracer {
         }
     }
 
+    fn update_camera_buffer(&mut self, position: &Vector3<f32>, direction: &Vector3<f32>, up: &Vector3<f32>)
+    {
+        unsafe {
+            let ptr = self.camera_buffer.contents() as *mut CameraData;
+            *ptr = CameraData {position: [position.x, position.y, position.z], direction: [direction.x, direction.y, direction.z], up: [up.x, up.y, up.z]};
+        }
+    }
+
     fn encode_ray_generator(&self, command_buffer: &CommandBufferRef)
     {
         let encoder = command_buffer.new_compute_command_encoder();
 
         encoder.set_buffer(0, Some(self.ray_buffer.as_ref().unwrap()), 0);
         encoder.set_buffer(1, Some(&self.noise_buffer), 0);
+        encoder.set_buffer(2, Some(&self.camera_buffer), 0);
         encoder.set_compute_pipeline_state(&self.ray_generator_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 

@@ -4,6 +4,7 @@ use cocoa::base::id as cocoa_id;
 use cocoa::base::YES;
 use cocoa::foundation::{NSAutoreleasePool};
 use cocoa::appkit::{NSWindow, NSView};
+use cgmath::*;
 
 use metal::*;
 
@@ -85,6 +86,10 @@ fn main() {
     let mut ray_number = 0;
     const MAX_NO_RAYS: usize = 1000;
 
+    let mut camera_position = Vector3::new(0.0, 1.0, 2.1);
+    let mut camera_direction = Vector3::new(0.0, 0.0, -1.0);
+    let mut camera_up = Vector3::new(0.0, 1.0, 0.0);
+
     while running {
         events_loop.poll_events(|event| {
             match event {
@@ -121,7 +126,7 @@ fn main() {
                 if (ray_number+1) % 10 == 0 {
                     println!("Ray number: {}", ray_number+1);
                 }
-                raytracer.encode_into(ray_number, command_buffer);
+                raytracer.encode_into(ray_number, command_buffer, &camera_position, &camera_direction, &camera_up);
                 ray_number += 1;
             }
             encode_blit_into(&command_buffer, &blit_pipeline_state, raytracer.output_texture(), &drawable.texture());

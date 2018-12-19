@@ -49,6 +49,13 @@ struct EmitterTriangle
     float pdf;
 };
 
+struct Camera
+{
+    packed_float3 position;
+    packed_float3 direction;
+    packed_float3 up;
+};
+
 struct ApplicationData
 {
     uint frameIndex;
@@ -120,23 +127,28 @@ device const packed_float4& sampleNoise(device const packed_float4* noise, uint2
 
 kernel void generateRays(device Ray* rays [[buffer(0)]],
                          device const packed_float4* noise [[buffer(1)]],
+                         device const Camera& camera [[buffer(2)]],
                          uint2 coordinates [[thread_position_in_grid]],
                          uint2 size [[threads_per_grid]])
 {
     uint rayIndex = coordinates.x + coordinates.y * size.x;
     device Ray& ray = rays[rayIndex];
-
-    const float3 origin = float3(0.0f, 1.0f, 2.1f);
     device const packed_float4& noiseSample = sampleNoise(noise, coordinates, 0);
+
     float2 rnd = (noiseSample.xy * 2.0 - 1.0) / float2(size - 1);
 
     float aspect = float(size.x) / float(size.y);
     float2 uv = float2(coordinates) / float2(size - 1) * 2.0f - 1.0f;
 
-    float3 direction = float3(aspect * (uv.x + rnd.x), (uv.y + rnd.y), -1.0f);
+    float3 eye = camera.position;;
+    float3 view_dir = camera.direction;
+    float3 up_dir = camera.up;
+    float3 right_dir = normalize(cross(view_dir, up_dir));
 
-    ray.origin = origin;
-    ray.direction = normalize(direction);
+    float3 direction = normalize(aspect * (uv.x + rnd.x) * right_dir + (uv.y + rnd.y) * up_dir + view_dir);
+
+    ray.origin = eye;
+    ray.direction = direction;
     ray.minDistance = EPSILON;
     ray.maxDistance = INFINITY;
     ray.color = float3(0.0);
