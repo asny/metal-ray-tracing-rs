@@ -87,7 +87,7 @@ fn main() {
     const MAX_NO_RAYS: usize = 1000;
 
     let mut camera_position = Vector3::new(0.0, 1.0, 2.1);
-    let mut camera_direction = Vector3::new(0.0, 0.0, -1.0);
+    let camera_target = vec3(0.0f32, 1.0, 0.0);
     let mut camera_up = Vector3::new(0.0, 1.0, 0.0);
     let mut navigating = false;
 
@@ -127,7 +127,7 @@ fn main() {
                         } => {
                             if navigating {
                                 println!("Mouse moved {:?}", delta);
-                                rotate_camera(delta, &mut camera_position, &mut camera_direction, &mut camera_up);
+                                rotate_camera(delta, &mut camera_position, &camera_target, &camera_up);
                                 ray_number = 0;
                             }
 
@@ -149,7 +149,7 @@ fn main() {
                 if (ray_number+1) % 10 == 0 {
                     println!("Ray number: {}", ray_number+1);
                 }
-                raytracer.encode_into(ray_number, command_buffer, &camera_position, &camera_direction, &camera_up);
+                raytracer.encode_into(ray_number, command_buffer, &camera_position, &(camera_target - camera_position).normalize(), &camera_up);
                 ray_number += 1;
             }
             encode_blit_into(&command_buffer, &blit_pipeline_state, raytracer.output_texture(), &drawable.texture());
@@ -169,17 +169,15 @@ fn main() {
     }
 }
 
-fn rotate_camera(delta: (f64, f64), position: &mut Vector3<f32>, direction: &mut Vector3<f32>, up: &mut Vector3<f32>)
+fn rotate_camera(delta: (f64, f64), position: &mut Vector3<f32>, target: &Vector3<f32>, up: &Vector3<f32>)
 {
-    let target = vec3(0.0f32, 1.0, 0.0);
-    let zoom = 2.1;
-
     let x = -delta.0 as f32;
     let y = delta.1 as f32;
 
-    let right_direction = direction.cross(*up);
+    let direction = target - *position;
+    let zoom = direction.magnitude();
+    let right_direction = direction.cross(*up).normalize();
 
     *position += (right_direction * x + *up * y) * 0.1;
-    *direction = (target - *position).normalize();
-    *position = target - *direction * zoom;
+    *position = target - (target - *position).normalize() * zoom;
 }
