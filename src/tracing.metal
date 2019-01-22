@@ -163,7 +163,8 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
                                 device const ApplicationData& appData [[buffer(4)]],
                                 device const packed_float4* noise [[buffer(5)]],
                                 device const EmitterTriangle* emitterTriangles [[buffer(6)]],
-                                device const Triangle* triangles [[buffer(7)]],
+                                device const Material* materials [[buffer(7)]],
+                                device const Triangle* triangles [[buffer(8)]],
                                 uint2 coordinates [[thread_position_in_grid]],
                                 uint2 size [[threads_per_grid]])
 {
@@ -177,14 +178,25 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
         return;
     }
 
-    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
-
-    // Surface attributes
+    // Hit surface attributes
     device const Triangle& surface_triangle = triangles[intersection.primitiveIndex];
+    device const Material& surface_material = materials[surface_triangle.materialIndex];
     float3 surface_normal = surface_triangle.normal;
     float3 surface_position = pointOnTriangle(indices, vertices, intersection.primitiveIndex, float3(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y));
 
+    // Handle the case where the ray hit an emitter
+    bool hitBackOfTriangle = dot(float3(ray.direction), surface_normal) > EPSILON;
+    if (length_squared(surface_material.emissive) > EPSILON && !hitBackOfTriangle)
+    {
+        ray.color += surface_material.emissive * ray.throughput;
+        ray.maxDistance = -1.0;
+        return;
+    }
+
+    ray.throughput *= surface_material.diffuse;
+
     // Sample light
+    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
     uint emitterPrimitiveIndex = sampleEmitterTriangle(emitterTriangles, appData.emitterTrianglesCount, noiseSample.x);
 
     // Light attributes
@@ -195,7 +207,7 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     light_dir /= light_dist;
 
     // Setup shadow ray
-    ray.hitBackOfTriangle = dot(float3(ray.direction), surface_normal) > EPSILON ? 1 : 0;
+    ray.hitBackOfTriangle = hitBackOfTriangle ? 1 : 0;
     ray.surfacePrimitiveIndex = intersection.primitiveIndex;
     ray.emitterPrimitiveIndex = emitterPrimitiveIndex;
     ray.origin = surface_position;
@@ -224,24 +236,12 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
         return;
     }
 
-    device const Intersection& intersection = intersections[rayIndex];
-    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
     device const Triangle& surface_triangle = triangles[ray.surfacePrimitiveIndex];
-    device const Material& surface_material = materials[surface_triangle.materialIndex];
     float3 surface_normal = ray.hitBackOfTriangle ? - surface_triangle.normal : surface_triangle.normal;
+    device const Intersection& intersection = intersections[rayIndex];
 
-    // Handle the case where the ray hit an emitter
-    if (length_squared(surface_material.emissive) > EPSILON && !ray.hitBackOfTriangle)
-    {
-        ray.color += surface_material.emissive * ray.throughput;
-        ray.maxDistance = -1.0;
-        return;
-    }
-
-    ray.throughput *= surface_material.diffuse;
-
-    // Calculate color contribution
-    if (intersection.distance < 0.0f) // No intersection => Nothing blocking the light
+    // Calculate shadow ray color contribution
+    if (intersection.distance < 0.0f) // No intersection between the shadow ray and the geometry => Nothing blocking the light
     {
         // light
         device const EmitterTriangle& emitter_triangle = emitterTriangles[ray.emitterPrimitiveIndex];
@@ -264,7 +264,6 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
             float lightSamplePdf = light_pdf * pointSamplePdf;
             ray.color += light_material.emissive * ray.throughput * (materialBsdf / lightSamplePdf);
         }
-
     }
 
     // Setup next ray bounce

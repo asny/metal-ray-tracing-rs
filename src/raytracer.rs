@@ -308,7 +308,8 @@ impl RayTracer {
         encoder.set_buffer(4, Some(&self.app_buffer), 0);
         encoder.set_buffer(5, Some(&self.noise_buffer), 0);
         encoder.set_buffer(6, Some(&self.emitter_triangle_buffer), 0);
-        encoder.set_buffer(7, Some(&self.triangle_buffer), 0);
+        encoder.set_buffer(7, Some(&self.material_buffer), 0);
+        encoder.set_buffer(8, Some(&self.triangle_buffer), 0);
         encoder.set_compute_pipeline_state(&self.intersection_handler_pipeline_state);
         self.dispatch_thread_groups(&encoder);
 
