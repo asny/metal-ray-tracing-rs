@@ -7,7 +7,7 @@ use cgmath::*;
 use mersenne_twister::MT19937;
 use rand::Rng;
 
-const MAX_NO_BOUNCES: usize = 8;
+const MAX_NO_BOUNCES: usize = 2;
 
 const NOISE_BLOCK_SIZE: usize = 64;
 const NOISE_BUFFER_SIZE: usize = MAX_NO_BOUNCES * NOISE_BLOCK_SIZE * NOISE_BLOCK_SIZE * 4;

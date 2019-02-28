@@ -78,13 +78,21 @@ uint sampleEmitterTriangle(device const EmitterTriangle* triangles, uint triangl
     return triangleCount-1;
 }
 
-void buildOrthonormalBasis(float3 n, thread float3& u, thread float3& v)
+float3 buildOrthonormalBasis(float3 n, float3 sample)
 {
-    float s = (n.z < 0.0 ? -1.0f : 1.0f);
+    /*float s = (n.z < 0.0 ? -1.0f : 1.0f);
     float a = -1.0f / (s + n.z);
     float b = n.x * n.y * a;
     u = float3(1.0f + s * n.x * n.x * a, s * b, -s * n.x);
-    v = float3(b, s + n.y * n.y * a, -n.y);
+    v = float3(b, s + n.y * n.y * a, -n.y);*/
+
+    float3 x = normalize(n);
+    float3 temp = normalize(float3(1.0, 1.0, -1.0));
+    float3 z = normalize(cross(x, temp));
+    float3 y = normalize(cross(z, x));
+
+
+    return normalize(x * sample.x + y * sample.y + z * sample.z);
 }
 
 float3 barycentric(float2 smp)
@@ -94,19 +102,42 @@ float3 barycentric(float2 smp)
     return float3(1.0f - r1, r1 * (1.0f - r2), r1 * r2);
 }
 
-float3 alignToDirection(float3 n, float cosTheta, float phi)
+/*float3 alignToDirection(float3 n, float cosTheta, float phi)
 {
     float3 u;
     float3 v;
     buildOrthonormalBasis(n, u, v);
     float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
     return (u * cos(phi) + v * sin(phi)) * sinTheta + n * cosTheta;
-}
+}*/
 
-float3 sampleCosineWeightedHemisphere(float3 n, float2 xi)
+/*float3 sampleCosineWeightedHemisphere(float3 n, float2 xi)
 {
     float cosTheta = sqrt(xi.x);
     return alignToDirection(n, cosTheta, xi.y * 2.0 * M_PI_F);
+}*/
+
+float3 sampleCosineWeightedHemisphere(float2 u) {
+    //return float3(1.0, 0.0, 0.0);
+    float phi = 2.0f * M_PI_F * u.x;
+
+    float cos_phi = cos(phi);
+    float sin_phi = sin(phi);
+
+    float theta = M_PI_2_F * u.y;
+    float cos_theta = cos(theta);
+    float sin_theta = sin(theta);
+    //float cos_theta = sqrt(u.y);
+    //float sin_theta = sqrt(1.0f - cos_theta * cos_theta);
+
+    if(phi > 2.0f * M_PI_F || phi < 0.0 || theta > 0.5 * M_PI_F || theta < 0.0)
+    {
+        //return float3(0.0, 0.0, 0.0);
+    }
+
+    return float3(sin_theta, cos_phi * cos_theta, sin_phi * cos_theta);
+
+
 }
 
 float3 pointOnTriangle(device const packed_uint3* indices, device const packed_float3* vertices, uint primitiveIndex, float3 coordinates)
@@ -149,8 +180,8 @@ kernel void generateRays(device Ray* rays [[buffer(0)]],
     float3 direction = normalize(aspect * (uv.x + rnd.x) * right_dir + (uv.y + rnd.y) * up_dir + view_dir);
 
     ray.origin = eye;
-    ray.direction = direction;
     ray.minDistance = EPSILON;
+    ray.direction = direction;
     ray.maxDistance = INFINITY;
     ray.color = float3(0.0);
     ray.throughput = float3(1.0);
@@ -181,17 +212,19 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     // Hit surface attributes
     device const Triangle& surface_triangle = triangles[intersection.primitiveIndex];
     device const Material& surface_material = materials[surface_triangle.materialIndex];
-    float3 surface_normal = surface_triangle.normal;
+    float3 surface_normal = float3(surface_triangle.normal);
     float3 surface_position = pointOnTriangle(indices, vertices, intersection.primitiveIndex, float3(intersection.coordinates, 1.0 - intersection.coordinates.x - intersection.coordinates.y));
+    //ray.color = float3((surface_position));
 
     // Handle the case where the ray hit an emitter
     bool hitBackOfTriangle = dot(float3(ray.direction), surface_normal) > EPSILON;
+    //ray.color = 0.5 * surface_normal + float3(0.5);
     if (length_squared(surface_material.emissive) > EPSILON && !hitBackOfTriangle)
     {
-        ray.color += surface_material.emissive * ray.throughput;
+        ray.color += ray.origin;//surface_material.emissive * ray.throughput;
         ray.maxDistance = -1.0;
-        return;
     }
+    else {
 
     ray.throughput *= surface_material.diffuse;
 
@@ -207,13 +240,15 @@ kernel void handleIntersections(device Ray* rays [[buffer(0)]],
     light_dir /= light_dist;
 
     // Setup shadow ray
+    ray.origin = packed_float3(surface_position);
+    ray.minDistance = EPSILON;
+    ray.direction = packed_float3(light_dir);
+    ray.maxDistance = light_dist - EPSILON;
+
     ray.hitBackOfTriangle = hitBackOfTriangle ? 1 : 0;
     ray.surfacePrimitiveIndex = intersection.primitiveIndex;
     ray.emitterPrimitiveIndex = emitterPrimitiveIndex;
-    ray.origin = surface_position;
-    ray.direction = light_dir;
-    ray.minDistance = EPSILON;
-    ray.maxDistance = light_dist - EPSILON;
+    }
 }
 
 kernel void handleShadows(device Ray* rays [[buffer(0)]],
@@ -237,7 +272,7 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
     }
 
     device const Triangle& surface_triangle = triangles[ray.surfacePrimitiveIndex];
-    float3 surface_normal = ray.hitBackOfTriangle ? - surface_triangle.normal : surface_triangle.normal;
+    float3 surface_normal = normalize(ray.hitBackOfTriangle ? - float3(surface_triangle.normal) : float3(surface_triangle.normal));
     device const Intersection& intersection = intersections[rayIndex];
 
     // Calculate shadow ray color contribution
@@ -250,7 +285,7 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
 
         float light_area = emitter_triangle.area;
         float light_pdf = emitter_triangle.pdf;
-        float3 light_normal = light_triangle.normal;
+        float3 light_normal = float3(light_triangle.normal);
         float3 light_dir = ray.direction;
         float light_dist = ray.maxDistance + EPSILON;
 
@@ -262,14 +297,28 @@ kernel void handleShadows(device Ray* rays [[buffer(0)]],
             float materialBsdf = (1.0 / M_PI_F) * dot(light_dir, surface_normal);
             float pointSamplePdf = (light_dist * light_dist) / (light_area * cosTheta);
             float lightSamplePdf = light_pdf * pointSamplePdf;
-            ray.color += light_material.emissive * ray.throughput * (materialBsdf / lightSamplePdf);
+            //ray.color += light_material.emissive * ray.throughput * (materialBsdf / lightSamplePdf);
         }
     }
 
     // Setup next ray bounce
-    ray.direction = sampleCosineWeightedHemisphere(surface_normal, noiseSample.wx);
+    device const packed_float4& noiseSample = sampleNoise(noise, coordinates, appData.bounceIndex);
+
+    float3 ray_sample = sampleCosineWeightedHemisphere(noiseSample.wx);
+
+    //float3 ray_sample = normalize(noiseSample.xyz * 2.0 - 1.0);
+    //ray.color = float3(ray.origin.x, ray.origin.y, ray.origin.z);
+
+    ray.origin = packed_float3(float3(0.0, 1.0, 0.0));
     ray.minDistance = EPSILON;
+    ray.direction = surface_normal;//buildOrthonormalBasis(surface_normal, ray_sample);
     ray.maxDistance = INFINITY;
+
+    /*ray.color = float3(0.0);
+    ray.throughput = float3(1.0);
+    ray.hitBackOfTriangle = 0;
+    ray.surfacePrimitiveIndex = 0;
+    ray.emitterPrimitiveIndex = 0;*/
 }
 
 kernel void accumulateImage(
